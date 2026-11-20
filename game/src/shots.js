@@ -52,7 +52,8 @@ export function stageShot(G, name, audio) {
     // police already on scene
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
-      const pc = makeCar(p.x + Math.cos(a) * 320, p.y + Math.sin(a) * 320, Math.atan2(p.y - (p.y + Math.sin(a) * 320), p.x - (p.x + Math.cos(a) * 320)), { name: 'Sedan', w: 46, l: 92, speed: 360, accel: 260 }, '#1e3a5f', 'police');
+      // face the player: the angle from the cruiser to the player is a + PI
+      const pc = makeCar(p.x + Math.cos(a) * 320, p.y + Math.sin(a) * 320, Math.atan2(-Math.sin(a), -Math.cos(a)), { name: 'Sedan', w: 46, l: 92, speed: 360, accel: 260 }, '#1e3a5f', 'police');
       pc.siren = true; pc.speed = 380;
       G.cars.push(pc);
     }

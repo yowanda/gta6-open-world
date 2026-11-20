@@ -86,10 +86,6 @@ export function tryEnterCar(G, audio) {
   p.onFoot = false;
   c.kind = 'player';
   c.ai = null;
-  if (c.parked) c.parked = false;
-  if (c.kindBefore !== 'player') { /* first steal */ }
-  const wasParked = c.wasParked;
-  if (wasParked || c.kind === 'traffic') { /* stealing a car draws heat */ }
   if (c.stolen !== true) {
     c.stolen = true;
     G.carsStolen++;

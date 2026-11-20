@@ -89,7 +89,8 @@ export class AudioSys {
   click() { this.blip(700, 0.05, 'square', 0.07); }
   startMusic() {
     if (!this.ctx || this.musicTimer) return;
-    // Funk bassline + hats, E minor groove, 112 BPM
+    // Funk bassline + hats, E minor groove, 112 BPM. Notes are MIDI numbers
+    // (40 = E2); 0 is a rest, so the groove breathes between notes.
     const bass = [40, 0, 40, 47, 0, 40, 52, 45, 40, 0, 43, 47, 50, 47, 43, 0];
     const stepDur = 60 / 112 / 2;
     this.musicTimer = setInterval(() => {

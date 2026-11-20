@@ -70,12 +70,13 @@ function respawn() {
   if (p.inCar) { const c = p.inCar; G.cars = G.cars.filter(x => x !== c); }
   p.inCar = null; p.onFoot = true; p.dead = false;
   p.x = 650; p.y = 1950; // Solara General Hospital
+  const fee = G.money - Math.floor(G.money * 0.9); // 10% hospital fee, taken before the deduction
   G.money = Math.floor(G.money * 0.9);
   G.health = 100; G.armor = 0; G.wanted = 0; G.cops = [];
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
   G.state = 'playing';
-  setToast(G, 'Patched up at Solara General. -$' + Math.floor(G.money * 0.1) + ' in fees.');
+  setToast(G, 'Patched up at Solara General. -$' + fee + ' in fees.');
 }
 
 // --- interactions: shops, safehouse, spray shop ---

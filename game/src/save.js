@@ -18,7 +18,10 @@ export function loadSave(G) {
   try {
     const raw = localStorage.getItem(G.saveSlot);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const d = JSON.parse(raw);
+    // a save from another game (or a corrupt one) must not load here
+    if (typeof d.money !== 'number' || typeof d.missionsDone !== 'number') return null;
+    return d;
   } catch (e) { return null; }
 }
 

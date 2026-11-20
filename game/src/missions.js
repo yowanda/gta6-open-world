@@ -187,8 +187,9 @@ export function updateMissions(G, input, audio, dt) {
   } else if (s.type === 'collect') {
     if (!m.collectSpawned) {
       m.collectSpawned = true;
-      const pos = s.type === 'collect' && m.def.steps[m.step - 1] && m.def.steps[m.step - 1].x !== undefined
-        ? { x: m.def.steps[m.step - 1].x, y: m.def.steps[m.step - 1].y } : { x: p.x, y: p.y };
+      // the package waits where the previous step sent the player
+      const prev = m.def.steps[m.step - 1];
+      const pos = prev && prev.x !== undefined ? { x: prev.x, y: prev.y } : { x: p.x, y: p.y };
       G.pickups.push({ x: pos.x, y: pos.y, kind: 'cash', val: 0, t: 0, mission: true });
       setToast(G, 'Grab the package (walk over it)');
     }

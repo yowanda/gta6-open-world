@@ -118,7 +118,8 @@ export function pointInBuilding(city, x, y) {
   return null;
 }
 
-// Random road position (for spawning traffic / police)
+// Random road position (for spawning traffic / police). dir is the heading
+// along the road: 0 / PI drive along x, +/-PI/2 along y.
 export function randomRoadPos(rng) {
   const vertical = rng() < 0.5;
   const line = ROAD_LINES[Math.floor(rng() * ROAD_LINES.length)];

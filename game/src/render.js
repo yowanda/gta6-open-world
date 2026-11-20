@@ -97,7 +97,7 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillRect(b.x, b.y, b.w, b.h);
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fillRect(b.x, b.y, b.w, 5);
-    // windows
+    // windows: a deterministic pattern from the block grid; | 0 floors the float
     ctx.fillStyle = 'rgba(40,60,90,0.55)';
     const cols = Math.max(1, Math.floor(b.w / 26)), rows = Math.max(1, Math.floor(b.h / 26));
     for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {

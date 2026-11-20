@@ -43,6 +43,8 @@ No build step, no network requests — every file the game loads is under `game/
 
 ```sh
 mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+# run it twice and compare: both runs must write byte-identical output
+sha256sum out/dossier.json
 ```
 
 ---

@@ -28,7 +28,7 @@ export function createGame() {
     rng,
     time: 0,                 // seconds since load
     clockMin: 16 * 60 + 24,  // game clock, minutes (starts late afternoon)
-    state: 'menu',           // menu | playing | paused | wasted | busted | missiondone
+    state: 'menu',           // menu | playing | paused | wasted | busted | storydone
     menuSel: 0,
     pausedSel: 0,
     city: null,

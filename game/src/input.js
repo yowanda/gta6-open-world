@@ -16,6 +16,8 @@ export class Input {
       this.mouse.x = e.clientX - r.left; this.mouse.y = e.clientY - r.top;
     });
     canvas.addEventListener('mousedown', (e) => { if (e.button === 0) { this.mouse.down = true; this.mouse.clicked = true; } });
+    // right-click must not open the browser menu while aiming with the mouse
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
     window.addEventListener('blur', () => { this.keys = {}; this.mouse.down = false; });
   }

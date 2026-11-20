@@ -184,7 +184,7 @@ function drawMinimap(ctx, G, x, y, w, h) {
   ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
   ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText('SOLARA BAY', x, y - 10 + 0);
+  ctx.fillText('SOLARA BAY', x, y - 10);
 }
 
 export function drawMenu(ctx, G, vw, vh) {
