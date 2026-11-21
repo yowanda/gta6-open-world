@@ -3,6 +3,7 @@
 // this only places the player, cars and police, then starts play.
 import { makeCar, spawnTraffic, spawnPeds, setToast } from './entities.js';
 import { startMission } from './missions.js';
+import { stageSideJob } from './missions2.js';
 import { stageRoadblock } from './police.js';
 import { RACE_POINTS } from './activities.js';
 
@@ -103,6 +104,21 @@ export function stageShot(G, name, audio) {
     G.mission.spawned = true;
     // a few bullets in the air for action
     G.bullets.push({ x: p.x + 60, y: p.y - 20, vx: 600, vy: 200, life: 0.4, dmg: 0, fromPlayer: true });
+  } else if (name === 'jobs') {
+    // Side Jobs on the Boardwalk: Rico on foot next to Ozzy Park, the
+    // escort job live (Timmy follows), side-job panel on the HUD.
+    G.clockMin = 16 * 60 + 20;
+    p.x = 2210; p.y = 1560; p.onFoot = true; p.inCar = null;
+    p.angle = 0;
+    spawnTraffic(G, 6);
+    spawnPeds(G, 14);
+    G.money = 3250; G.health = 100; G.armor = 25;
+    G.missionsDone = 1;
+    G.nextMissionAt = 1e9; // staged shot: no story mission may butt in
+    stageSideJob(G, 2, 0, audio);
+    // jump to the escort step: Timmy spawns on the next update tick
+    G.side.active.step = 1;
+    setToast(G, 'SIDE JOB: Walk the Kid Home — Timmy is following you');
   }
   // aim the camera at the player immediately
   G.cam.x = p.x; G.cam.y = p.y;

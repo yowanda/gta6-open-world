@@ -201,8 +201,8 @@ function completeMission(G, audio) {
 }
 
 export function updateMissions(G, input, audio, dt) {
-  // auto-start next mission
-  if (!G.mission && G.missionsDone < STORY.length && G.state === 'playing') {
+  // auto-start next mission (never while a side job is running)
+  if (!G.mission && !G.side?.active && G.missionsDone < STORY.length && G.state === 'playing') {
     if (G.nextMissionAt === undefined) G.nextMissionAt = G.time + 2;
     if (G.time >= G.nextMissionAt) startMission(G, G.missionsDone, audio);
   }

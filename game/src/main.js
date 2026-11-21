@@ -6,6 +6,7 @@ import { Input } from './input.js';
 import { AudioSys } from './audio.js';
 import { makePlayer, spawnTraffic, spawnPeds, updatePlayer, updateTraffic, updatePeds, updatePolice, updateCombat, setToast, exitCar } from './entities.js';
 import { startMission, updateMissions, currentStep } from './missions.js';
+import { initSideJobs, updateSideJobs, drawJobsBoard } from './missions2.js';
 import { initDragnet, updateDragnet } from './police.js';
 import { updateActivities } from './activities.js';
 import { drawWorld } from './render.js';
@@ -16,6 +17,7 @@ import { stageShot } from './shots.js';
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const G = createGame();
+initSideJobs(G);
 const input = new Input(canvas);
 const audio = new AudioSys();
 
@@ -60,6 +62,7 @@ function newGame() {
   G.bounty = null; G.bountyCd = 0;
   G.weather = 'clear'; G.weatherT = 75 + Math.random() * 60;
   initDragnet(G);
+  initSideJobs(G);
   for (const [x, y] of pkgSpots) G.pickups.push({ x, y, kind: 'package', val: 0, t: 0 });
   G.player = makePlayer(420, 460);
   G.cam.x = G.player.x; G.cam.y = G.player.y;
@@ -82,6 +85,7 @@ function respawn() {
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
   initDragnet(G);
+  if (G.side) { G.side.active = null; G.side.boardOpen = false; G.markers = []; }
   G.enemies = G.enemies.filter(e => !e.bounty);
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
@@ -174,6 +178,10 @@ function frame(now) {
     }
   } else if (G.state === 'playing') {
     if (input.hit('p') || input.hit('escape')) { G.state = 'paused'; G.pausedSel = 0; audio.click(); }
+    else if (G.side && G.side.boardOpen) {
+      // Jobs board open: the city waits while Rico reads the board
+      if (input.hit('j') || input.hit('escape')) { G.side.boardOpen = false; audio.click(); }
+    }
     else if (G.dialog) {
       if (input.hit('e') || input.hit('enter') || input.hit(' ') || input.mouse.clicked) {
         G.dialog.i++;
@@ -181,26 +189,30 @@ function frame(now) {
         audio.click();
       }
     } else {
-      updatePlayer(G, input, audio, dt);
-      updateTraffic(G, dt);
-      updatePeds(G, dt, audio);
-      updatePolice(G, dt, audio);
-      updateDragnet(G, dt, audio);
-      updateCombat(G, dt, audio);
-      updateMissions(G, input, audio, dt);
-      updateActivities(G, input, audio, dt);
-      updateInteractions(dt);
-      // weather rolls over on its own: clear skies, then rain, then clear
-      G.weatherT -= dt;
-      if (G.weatherT <= 0) {
-        if (G.weather === 'clear') {
-          if (Math.random() < 0.35) {
-            G.weather = 'rain'; G.weatherT = 45 + Math.random() * 45;
-            setToast(G, 'Rain over Solara Bay — roads are slick');
-          } else G.weatherT = 60 + Math.random() * 60;
-        } else {
-          G.weather = 'clear'; G.weatherT = 75 + Math.random() * 90;
-          setToast(G, 'The rain lets up over Solara Bay');
+      if (input.hit('j') && G.side) { G.side.boardOpen = true; audio.click(); }
+      else {
+        updatePlayer(G, input, audio, dt);
+        updateTraffic(G, dt);
+        updatePeds(G, dt, audio);
+        updatePolice(G, dt, audio);
+        updateDragnet(G, dt, audio);
+        updateCombat(G, dt, audio);
+        updateMissions(G, input, audio, dt);
+        updateSideJobs(G, input, audio, dt);
+        updateActivities(G, input, audio, dt);
+        updateInteractions(dt);
+        // weather rolls over on its own: clear skies, then rain, then clear
+        G.weatherT -= dt;
+        if (G.weatherT <= 0) {
+          if (G.weather === 'clear') {
+            if (Math.random() < 0.35) {
+              G.weather = 'rain'; G.weatherT = 45 + Math.random() * 45;
+              setToast(G, 'Rain over Solara Bay — roads are slick');
+            } else G.weatherT = 60 + Math.random() * 60;
+          } else {
+            G.weather = 'clear'; G.weatherT = 75 + Math.random() * 90;
+            setToast(G, 'The rain lets up over Solara Bay');
+          }
         }
       }
     }
@@ -244,6 +256,7 @@ function frame(now) {
     const d = darkness();
     if (d > 0.01) { ctx.fillStyle = 'rgba(10,16,48,' + d + ')'; ctx.fillRect(0, 0, vw, vh); }
     if (G.state !== 'paused') drawHUD(ctx, G, vw, vh);
+    if (G.side && G.side.boardOpen) drawJobsBoard(ctx, G, vw, vh);
     // interaction prompt
     if (G.state === 'playing' && G.nearShop && !G.dialog) {
       const labels = {

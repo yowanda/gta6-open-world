@@ -4,6 +4,7 @@ import { WORLD, ROAD_HALF, clamp } from './state.js';
 import { ROAD_LINES } from './city.js';
 import { currentStep, STORY } from './missions.js';
 import { BOUNTY_REWARD } from './activities.js';
+import { drawSidePanel, SIDE_GIVERS, sideChainDone } from './missions2.js';
 
 export function drawHUD(ctx, G, vw, vh) {
   const p = G.player;
@@ -104,6 +105,8 @@ export function drawHUD(ctx, G, vw, vh) {
         : 'TAXI FARE  •  Drop off the passenger  •  $' + G.taxi.fare + '  •  ' + d + ' m', vw / 2, 94);
     }
   }
+  // --- side jobs panel (active job + chain progress) ---
+  drawSidePanel(ctx, G, vw, vh);
   // --- helicopter warning
   if (G.heli) {
     ctx.textAlign = 'center';
@@ -271,6 +274,22 @@ function drawMinimap(ctx, G, x, y, w, h) {
     for (const e of G.enemies) {
       if (!e.bounty) continue;
       ctx.beginPath(); ctx.arc(x + e.x * s, y + e.y * s, 4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // side-job givers (purple !) and the active side objective (purple dot)
+  if (G.side) {
+    for (let i = 0; i < SIDE_GIVERS.length; i++) {
+      const g = SIDE_GIVERS[i];
+      ctx.fillStyle = sideChainDone(G, i) ? '#888' : g.color;
+      ctx.beginPath(); ctx.arc(x + g.x * s, y + g.y * s, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 7px sans-serif';
+      ctx.fillText('!', x + g.x * s, y + g.y * s + 2.5);
+    }
+    const sa = G.side.active;
+    if (sa && sa.job.steps[sa.step] && sa.job.steps[sa.step].x !== undefined) {
+      const st = sa.job.steps[sa.step];
+      ctx.fillStyle = '#c678dd';
+      ctx.beginPath(); ctx.arc(x + st.x * s, y + st.y * s, 4, 0, Math.PI * 2); ctx.fill();
     }
   }
   // player arrow

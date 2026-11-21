@@ -4,6 +4,7 @@ import { WORLD, ROAD_HALF, clamp, nightFactor } from './state.js';
 import { pointInBuilding, ROAD_LINES } from './city.js';
 import { RACE_START, RACE_POINTS, BOUNTY_REWARD } from './activities.js';
 import { drawDragnet } from './police.js';
+import { drawSideWorld } from './missions2.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -197,6 +198,8 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillStyle = '#ffd93d';
     ctx.beginPath(); ctx.moveTo(mx, by + 16); ctx.lineTo(mx - 10, by - 6); ctx.lineTo(mx + 10, by - 6); ctx.closePath(); ctx.fill();
   }
+  // side-job givers, the escort kid and the fleeing debtor
+  drawSideWorld(ctx, G);
   // pickups
   for (const pk of G.pickups) {
     const bob = Math.sin(G.time * 4 + pk.x) * 3;

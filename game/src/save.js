@@ -7,6 +7,7 @@ export function saveGame(G) {
       ammo: G.ammo, weapon: G.weapon,
       missionsDone: G.missionsDone, score: G.score, kills: G.kills, carsStolen: G.carsStolen,
       x: p.x, y: p.y, clockMin: G.clockMin, wanted: 0,
+      sideDone: G.side ? G.side.done : [0, 0, 0], sideCash: G.side ? G.side.cashEarned : 0,
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(G.saveSlot, JSON.stringify(data));
@@ -33,6 +34,11 @@ export function applySave(G, d) {
   G.clockMin = d.clockMin || 16 * 60;
   G.wanted = 0;
   G.player.dead = false;
+  if (G.side && Array.isArray(d.sideDone)) {
+    G.side.done = d.sideDone.slice(0, 3);
+    G.side.jobsDone = G.side.done.reduce((n, v) => n + v, 0);
+    G.side.cashEarned = d.sideCash || 0;
+  }
 }
 
 export function saveInfo(G) {

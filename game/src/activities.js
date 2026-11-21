@@ -77,7 +77,7 @@ export function updateActivities(G, input, audio, dt) {
   // --- Street race: drive through the flag on the Strip to start ---
   if (G.race && G.race.cooldown > 0) G.race.cooldown -= dt;
   if (!G.race || !G.race.active) {
-    if (p.inCar && !G.mission && !G.dialog && dist2(p.x, p.y, RACE_START.x, RACE_START.y) < 46 * 46
+    if (p.inCar && !G.mission && !G.side?.active && !G.dialog && dist2(p.x, p.y, RACE_START.x, RACE_START.y) < 46 * 46
       && Math.abs(p.inCar.speed) > 60 && (!G.race || G.race.cooldown <= 0)) {
       G.race = { active: true, cp: 0, t: 0, points: RACE_POINTS, cooldown: 0 };
       G.raceFlash = 3;
@@ -133,7 +133,7 @@ function bountySpawnPoint(G) {
 
 export function updateBounty(G, audio, dt) {
   const p = G.player;
-  if (G.state !== 'playing' || p.dead || G.mission || G.dialog) return;
+  if (G.state !== 'playing' || p.dead || G.mission || G.side?.active || G.dialog) return;
   if (!G.bounty) {
     G.bountyCd = Math.max(0, (G.bountyCd || 0) - dt);
     if (G.bountyCd > 0) return;

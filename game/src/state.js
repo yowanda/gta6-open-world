@@ -119,4 +119,7 @@ export const CAR_MODELS = [
   { name: 'Stallion', w: 48, l: 88, speed: 440, accel: 390 },
   { name: 'Limo', w: 50, l: 132, speed: 300, accel: 170 },
   { name: 'Rider', w: 22, l: 72, speed: 540, accel: 430 },
+  // round 8: Sunset is a convertible cruiser — quick, light, and built
+  // for the coast road along the Boardwalk.
+  { name: 'Sunset', w: 46, l: 86, speed: 460, accel: 330 },
 ];
