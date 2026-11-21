@@ -6,6 +6,7 @@ import { Input } from './input.js';
 import { AudioSys } from './audio.js';
 import { makePlayer, spawnTraffic, spawnPeds, updatePlayer, updateTraffic, updatePeds, updatePolice, updateCombat, setToast, exitCar } from './entities.js';
 import { startMission, updateMissions, currentStep } from './missions.js';
+import { initDragnet, updateDragnet } from './police.js';
 import { updateActivities } from './activities.js';
 import { drawWorld } from './render.js';
 import { drawHUD, drawMenu, drawPause, drawEndScreen } from './hud.js';
@@ -57,6 +58,8 @@ function newGame() {
   G.cars = []; G.peds = [];
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
+  G.weather = 'clear'; G.weatherT = 75 + Math.random() * 60;
+  initDragnet(G);
   for (const [x, y] of pkgSpots) G.pickups.push({ x, y, kind: 'package', val: 0, t: 0 });
   G.player = makePlayer(420, 460);
   G.cam.x = G.player.x; G.cam.y = G.player.y;
@@ -78,6 +81,7 @@ function respawn() {
   G.health = 100; G.armor = 0; G.wanted = 0; G.cops = [];
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
+  initDragnet(G);
   G.enemies = G.enemies.filter(e => !e.bounty);
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
@@ -88,10 +92,25 @@ function respawn() {
 // --- interactions: shops, safehouse, spray shop ---
 function updateInteractions(dt) {
   const p = G.player;
-  if (!p.onFoot) return;
   const city = G.city;
   const near = (pt, r) => dist2(p.x, p.y, pt.x, pt.y) < r * r;
   G.nearShop = null;
+  // tire repair works from the driver's seat: roll into Pay 'n' Spray and
+  // press R — no need to get out while the PD is still looking for you
+  if (p.inCar && near(city.spray, 90)) {
+    G.nearShop = 'spray';
+    if (input.hit('r')) {
+      const c = p.inCar;
+      if ((c.flat || 0) > 0 && G.money >= 150) {
+        G.money -= 150; c.flat = 0;
+        setToast(G, 'Fresh rubber all round — $150');
+        audio.cash();
+      } else if ((c.flat || 0) > 0) setToast(G, 'Tire repair costs $150');
+      else setToast(G, 'Pay \'n\' Spray: tires are fine — get out (E) to clear heat');
+    }
+    return;
+  }
+  if (!p.onFoot) return;
   if (near(city.gunshop, 70)) G.nearShop = 'gun';
   else if (near(city.spray, 80)) G.nearShop = 'spray';
   else if (near(city.safehouse, 80)) G.nearShop = 'safe';
@@ -166,10 +185,24 @@ function frame(now) {
       updateTraffic(G, dt);
       updatePeds(G, dt, audio);
       updatePolice(G, dt, audio);
+      updateDragnet(G, dt, audio);
       updateCombat(G, dt, audio);
       updateMissions(G, input, audio, dt);
       updateActivities(G, input, audio, dt);
       updateInteractions(dt);
+      // weather rolls over on its own: clear skies, then rain, then clear
+      G.weatherT -= dt;
+      if (G.weatherT <= 0) {
+        if (G.weather === 'clear') {
+          if (Math.random() < 0.35) {
+            G.weather = 'rain'; G.weatherT = 45 + Math.random() * 45;
+            setToast(G, 'Rain over Solara Bay — roads are slick');
+          } else G.weatherT = 60 + Math.random() * 60;
+        } else {
+          G.weather = 'clear'; G.weatherT = 75 + Math.random() * 90;
+          setToast(G, 'The rain lets up over Solara Bay');
+        }
+      }
     }
     // camera follows player with velocity look-ahead
     const p = G.player;
@@ -215,7 +248,9 @@ function frame(now) {
     if (G.state === 'playing' && G.nearShop && !G.dialog) {
       const labels = {
         gun: 'Ironworks Gun Shop — E: buy weapon / ammo',
-        spray: 'Pay \'n\' Spray — E: clear wanted ($300)',
+        spray: G.player.inCar
+          ? (G.player.inCar.flat > 0 ? 'Pay \'n\' Spray — R: fix tires ($150)' : 'Pay \'n\' Spray — tires fine, get out (E) to clear heat')
+          : 'Pay \'n\' Spray — E: clear wanted ($300)',
         safe: 'Pelican Motel — safehouse (auto-save)',
         hospital: 'Solara General — E: treatment ($150)',
       };

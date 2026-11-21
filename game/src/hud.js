@@ -39,6 +39,21 @@ export function drawHUD(ctx, G, vw, vh) {
     ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
     ctx.fillText('Next Vulture bounty in ' + Math.ceil(G.bountyCd) + 's', vw - 112, 330);
   }
+  // dragnet heat status: spotted or hidden, and how the heat is moving
+  if (G.wanted > 0 && G.heat) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px sans-serif';
+    if (G.heat.seen) {
+      ctx.fillStyle = '#ff5a4e';
+      ctx.fillText('SPOTTED — the PD can see you', vw - 112, 348);
+    } else if (G.heat.hiddenT > 6) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillText('HIDDEN — stay out of sight, heat is cooling', vw - 112, 348);
+    } else {
+      ctx.fillStyle = '#ffd93d';
+      ctx.fillText('BREAKING LINE OF SIGHT…', vw - 112, 348);
+    }
+  }
 
   // --- mission objective (top-centre)
   const step = currentStep(G);
@@ -110,6 +125,12 @@ export function drawHUD(ctx, G, vw, vh) {
     ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
     ctx.fillText(p.inCar.model.name, vw - 200, vh - 20);
     ctx.textAlign = 'right';
+    // flat tires from spike strips: show what is left, and where to fix it
+    if ((p.inCar.flat || 0) > 0) {
+      const flat = p.inCar.flat;
+      ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('TIRES ' + '●'.repeat(4 - flat) + '○'.repeat(flat) + '  —  R at Pay \'n\' Spray ($150)', vw - 24, vh - 104);
+    }
   } else {
     ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
     ctx.fillText('On foot — press E near a car to steal it', vw - 24, vh - 20);
@@ -222,6 +243,15 @@ function drawMinimap(ctx, G, x, y, w, h) {
   // police blips
   ctx.fillStyle = '#2d6bff';
   for (const c of G.cars) if (c.kind === 'police') { ctx.beginPath(); ctx.arc(x + c.x * s, y + c.y * s, 3, 0, Math.PI * 2); ctx.fill(); }
+  // roadblocks (red squares) and spike strips (orange dots) on the minimap
+  if (G.roadblocks) {
+    ctx.fillStyle = '#ff2d2d';
+    for (const b of G.roadblocks) ctx.fillRect(x + b.x * s - 3, y + b.y * s - 3, 6, 6);
+  }
+  if (G.spikes) {
+    ctx.fillStyle = '#ff9f1a';
+    for (const sp of G.spikes) { ctx.beginPath(); ctx.arc(x + sp.x * s, y + sp.y * s, 2.5, 0, Math.PI * 2); ctx.fill(); }
+  }
   // helicopter blip (red ring) + taxi / race blips (green)
   if (G.heli) {
     ctx.strokeStyle = '#ff5a4e'; ctx.lineWidth = 2;
@@ -324,6 +354,9 @@ export function drawMenu(ctx, G, vw, vh) {
       '• Crimes raise your wanted level (stars). Police cars and foot cops',
       '  hunt you; lose them and the heat fades. Get busted or wasted and',
       '  you lose some cash and wake up at the hospital.',
+      '• At 2+ stars the PD sets roadblocks with spike strips — blown',
+      '  tires cripple the car. Break line of sight to go HIDDEN and the',
+      '  heat cools fast. Press R at Pay \'n\' Spray to fix tires ($150).',
       '• Follow the yellow marker: missions pay cash. Buy weapons at the',
       '  Ironworks Gun Shop and clear heat at the Pay \'n\' Spray.',
       '• Hidden packages around the city pay $150 each. Progress saves',

@@ -3,6 +3,7 @@
 import { WORLD, ROAD_HALF, clamp, nightFactor } from './state.js';
 import { pointInBuilding, ROAD_LINES } from './city.js';
 import { RACE_START, RACE_POINTS, BOUNTY_REWARD } from './activities.js';
+import { drawDragnet } from './police.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -209,6 +210,8 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(pk.kind === 'cash' ? '$' : pk.kind === 'health' ? '+' : pk.kind === 'armor' ? 'A' : '!', pk.x, pk.y + bob + 4);
   }
+  // PD dragnet: spike strips and roadblock cruisers, under the traffic
+  drawDragnet(ctx, G);
   // cars
   for (const c of G.cars) drawCar(ctx, c, G);
   // headlight cones after dark: the player's car and police cruisers cut the night
@@ -331,6 +334,22 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.beginPath(); ctx.moveTo(b.x, b.y);
     ctx.lineTo(b.x - b.vx * 0.02, b.y - b.vy * 0.02); ctx.stroke();
   }
+  // rain: slanted streaks over the visible streets, driven by the clock
+  // so the weather reads the same from any camera angle
+  if (G.weather === 'rain') {
+    ctx.strokeStyle = 'rgba(180,200,220,0.35)';
+    ctx.lineWidth = 2;
+    const vx0 = cam.x - vw / 2 / z - 40, vy0 = cam.y - vh / 2 / z - 40;
+    const vwW = vw / z + 80, vhW = vh / z + 80;
+    for (let i = 0; i < 90; i++) {
+      const rx = vx0 + ((i * 173 + G.time * 620) % vwW);
+      const ry = vy0 + ((i * 311 + G.time * 900) % vhW);
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx - 7, ry + 20);
+      ctx.stroke();
+    }
+  }
   // particles
   for (const pt of G.particles) {
     ctx.globalAlpha = Math.max(0, pt.life / pt.max);
@@ -349,22 +368,36 @@ export function drawCar(ctx, c, G) {
   // shadow
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   roundRect(ctx, -w / 2 + 3, -l / 2 + 4, w, l, 8); ctx.fill();
-  // body
-  ctx.fillStyle = c.color;
-  roundRect(ctx, -w / 2, -l / 2, w, l, 9); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  roundRect(ctx, -w / 2, -l / 2, w, 14, 9); ctx.fill();
-  // windshield + rear window
-  ctx.fillStyle = '#1c2733';
-  roundRect(ctx, -w / 2 + 5, -l / 2 + 18, w - 10, 14, 4); ctx.fill();
-  roundRect(ctx, -w / 2 + 5, l / 2 - 32, w - 10, 12, 4); ctx.fill();
-  // roof
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  roundRect(ctx, -w / 2 + 4, -6, w - 8, 26, 5); ctx.fill();
-  // wheels
-  ctx.fillStyle = '#111';
-  ctx.fillRect(-w / 2 - 3, -l / 2 + 10, 6, 16); ctx.fillRect(w / 2 - 3, -l / 2 + 10, 6, 16);
-  ctx.fillRect(-w / 2 - 3, l / 2 - 26, 6, 16); ctx.fillRect(w / 2 - 3, l / 2 - 26, 6, 16);
+  // body — the Rider is a motorbike, not a car: a slim frame, a rider
+  // leaning over it, and two wheels in line instead of four at the corners
+  if (m.name === 'Rider') {
+    ctx.fillStyle = c.color;
+    roundRect(ctx, -w / 2, -l / 2, w, l, 8); ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.arc(0, -l / 2 + 12, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f1c27d';
+    ctx.beginPath(); ctx.arc(0, 2, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0e7c7b';
+    ctx.beginPath(); ctx.arc(0, 12, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-4, -l / 2 - 4, 8, 12); ctx.fillRect(-4, l / 2 - 8, 8, 12);
+  } else {
+    ctx.fillStyle = c.color;
+    roundRect(ctx, -w / 2, -l / 2, w, l, 9); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    roundRect(ctx, -w / 2, -l / 2, w, 14, 9); ctx.fill();
+    // windshield + rear window
+    ctx.fillStyle = '#1c2733';
+    roundRect(ctx, -w / 2 + 5, -l / 2 + 18, w - 10, 14, 4); ctx.fill();
+    roundRect(ctx, -w / 2 + 5, l / 2 - 32, w - 10, 12, 4); ctx.fill();
+    // roof
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    roundRect(ctx, -w / 2 + 4, -6, w - 8, 26, 5); ctx.fill();
+    // wheels
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-w / 2 - 3, -l / 2 + 10, 6, 16); ctx.fillRect(w / 2 - 3, -l / 2 + 10, 6, 16);
+    ctx.fillRect(-w / 2 - 3, l / 2 - 26, 6, 16); ctx.fillRect(w / 2 - 3, l / 2 - 26, 6, 16);
+  }
   // headlights
   ctx.fillStyle = '#fff8c9';
   ctx.fillRect(-w / 2 + 5, -l / 2 - 2, 8, 4); ctx.fillRect(w / 2 - 13, -l / 2 - 2, 8, 4);

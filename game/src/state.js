@@ -27,6 +27,19 @@ export function nightFactor(clockMin) {
   return (6 - h) * 0.5 + 0.2;
 }
 export function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
+// Flat tires change how a car drives. The top speed, the launch and the
+// steering all degrade per blown tire (see game/src/police.js).
+export function tireFactor(car) {
+  const flat = car.flat || 0;
+  if (flat <= 0) return 1;
+  return Math.max(0.22, 1 - 0.24 * flat);
+}
+// Wobble a damaged car pulls to one side while it rolls.
+export function tireWobble(G, car, dt) {
+  const flat = car.flat || 0;
+  if (flat <= 0 || Math.abs(car.speed || 0) < 30) return 0;
+  return Math.sin(G.time * 9 + car.x * 0.01) * 0.35 * flat * dt * clamp(Math.abs(car.speed) / 200, 0, 1);
+}
 export function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 
@@ -78,6 +91,8 @@ export function createGame() {
     raceFlash: 0,          // timer for the race-start banner
     bounty: null,          // Vulture bounty round {left, total, t} while one runs
     bountyCd: 0,           // seconds until the next bounty round may start
+    weather: 'clear',      // clear | rain — rolls over on its own timer
+    weatherT: 75 + rng() * 60,
     saveSlot: 'solara-bay-save-v1',
   };
 }
@@ -97,4 +112,11 @@ export const CAR_MODELS = [
   { name: 'Sports', w: 44, l: 80, speed: 480, accel: 360 },
   { name: 'Truck', w: 54, l: 120, speed: 280, accel: 180 },
   { name: 'Interceptor', w: 46, l: 88, speed: 520, accel: 400 },
+  // round 7: three more ways to move. Stallion is a muscle car — brutal
+  // launch, lower top end. Limo is long and heavy, slow to get going.
+  // Rider is a motorbike: the fastest thing in the city, but it stops
+  // like a bike and has no bodywork to hide behind.
+  { name: 'Stallion', w: 48, l: 88, speed: 440, accel: 390 },
+  { name: 'Limo', w: 50, l: 132, speed: 300, accel: 170 },
+  { name: 'Rider', w: 22, l: 72, speed: 540, accel: 430 },
 ];

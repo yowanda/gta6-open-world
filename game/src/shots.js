@@ -3,6 +3,7 @@
 // this only places the player, cars and police, then starts play.
 import { makeCar, spawnTraffic, spawnPeds, setToast } from './entities.js';
 import { startMission } from './missions.js';
+import { stageRoadblock } from './police.js';
 import { RACE_POINTS } from './activities.js';
 
 export function stageShot(G, name, audio) {
@@ -73,6 +74,10 @@ export function stageShot(G, name, audio) {
     }
     // helicopter already overhead (updatePolice would spawn it on the next tick)
     G.heli = { x: p.x + 220, y: p.y - 220, angle: Math.PI * 0.75 };
+    // a PD roadblock with spike strips ahead of the player on the same
+    // road — the dragnet, the helicopter and the escape step in one frame
+    p.angle = Math.PI;
+    stageRoadblock(G, 420);
   } else if (name === 'mission') {
     // The finale on foot at the Boardwalk: Rook, his Bruiser and his crew,
     // SMG out, mission objective and kill counter on the HUD. The fight is

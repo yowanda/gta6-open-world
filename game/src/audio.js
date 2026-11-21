@@ -87,6 +87,12 @@ export class AudioSys {
   fail() { [400, 300, 220].forEach((f, i) => setTimeout(() => this.blip(f, 0.2, 'sawtooth', 0.1), i * 130)); }
   crash() { this.noise(0.25, 0.3, 900); }
   click() { this.blip(700, 0.05, 'square', 0.07); }
+  // PD dispatch chirp: two short radio blips, like a mic keying open
+  radio() { this.blip(1250, 0.06, 'square', 0.09); setTimeout(() => this.blip(950, 0.08, 'square', 0.09), 90); }
+  // a tire blowing on a spike strip: a sharp pop, then air hissing out
+  tirePop() { this.noise(0.08, 0.4, 3000); this.blip(140, 0.25, 'sawtooth', 0.14); setTimeout(() => this.noise(0.5, 0.08, 5000), 60); }
+  // tyres scrubbing in a hard turn or on wet asphalt
+  skid() { this.noise(0.35, 0.1, 2600); }
   startMusic() {
     if (!this.ctx || this.musicTimer) return;
     // Funk bassline + hats, E minor groove, 112 BPM. Notes are MIDI numbers

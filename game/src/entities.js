@@ -1,6 +1,6 @@
 // entities.js — player, cars, traffic, pedestrians, police and combat.
 // The player walks, steals and drives; the city reacts with traffic, cops and gangs.
-import { WORLD, ROAD_HALF, clamp, lerp, dist2, angDiff, pick, WEAPONS, CAR_MODELS, CAR_COLORS } from './state.js';
+import { WORLD, ROAD_HALF, clamp, lerp, dist2, angDiff, pick, WEAPONS, CAR_MODELS, CAR_COLORS, tireFactor, tireWobble } from './state.js';
 import { collideCircle, onRoad, randomRoadPos, pointInBuilding, nearestRoadLine, ROAD_LINES } from './city.js';
 
 export function makePlayer(x, y) {
@@ -166,14 +166,20 @@ export function updatePlayer(G, input, audio, dt) {
     let fwd = -ax.y; // W = forward
     if (G.shotMode) fwd = 1; // staged screenshots: keep the car rolling
     const steer = ax.x;
-    const top = c.model.speed;
-    c.speed += fwd * c.model.accel * dt;
+    // blown tires (spike strips) cut the top speed and the launch, and
+    // rain slicks the roads: the car never quite does what it did dry
+    const top = c.model.speed * tireFactor(c) * (G.weather === 'rain' ? 0.94 : 1);
+    c.speed += fwd * c.model.accel * tireFactor(c) * dt;
     if (fwd === 0) c.speed -= Math.sign(c.speed) * 120 * dt;
-    if (input.down(' ') ) { c.speed -= Math.sign(c.speed) * 500 * dt; c.brake = true; } else c.brake = false;
+    if (input.down(' ') ) {
+      c.speed -= Math.sign(c.speed) * (G.weather === 'rain' ? 380 : 500) * dt; c.brake = true;
+      c.skidCd = Math.max(0, (c.skidCd || 0) - dt);
+      if (Math.abs(c.speed) > 200 && c.skidCd <= 0) { c.skidCd = 0.9; if (audio.skid) audio.skid(); }
+    } else c.brake = false;
     c.speed = clamp(c.speed, -140, top);
     if (Math.abs(c.speed) < 4 && fwd === 0) c.speed = 0;
     const turn = steer * 2.1 * clamp(Math.abs(c.speed) / 120, 0, 1) * (c.speed >= 0 ? 1 : -1);
-    c.angle += turn * dt;
+    c.angle += turn * dt + tireWobble(G, c, dt);
     const nx = c.x + Math.cos(c.angle) * c.speed * dt;
     const ny = c.y + Math.sin(c.angle) * c.speed * dt;
     const hit = collideCircle(G.city, nx, ny, 22);
@@ -202,6 +208,12 @@ export function updatePlayer(G, input, audio, dt) {
         if (Math.abs(c.speed) > 200) { c.speed *= 0.995; }
       }
     }
+    // a ram must never shove the car through a wall or out of the world:
+    // a pile of cruisers used to push the player through buildings and
+    // off the map entirely, so re-apply collision and the world bounds
+    // after every bump
+    const fixed = collideCircle(G.city, c.x, c.y, 22);
+    c.x = clamp(fixed.x, 40, WORLD - 40); c.y = clamp(fixed.y, 40, WORLD - 40);
     p.x = c.x; p.y = c.y; p.angle = c.angle; p.speed = c.speed;
     audio.setEngine(Math.abs(c.speed) / top);
     // run over pedestrians (crime!)
@@ -276,7 +288,7 @@ export function updateTraffic(G, dt) {
         c.speed = Math.max(0, c.speed - 200 * dt);
       }
     }
-    c.speed = lerp(c.speed, c.ai.targetSpeed, dt * 0.5);
+    c.speed = lerp(c.speed, c.ai.targetSpeed * tireFactor(c), dt * 0.5);
     // at intersection, maybe turn
     const crossPos = onV ? c.y : c.x;
     const crossLine = nearestRoadLine(crossPos);
@@ -308,6 +320,17 @@ export function updatePeds(G, dt, audio) {
     // panic if gunfire / player car speeding nearby
     const pd = dist2(ped.x, ped.y, p.x, p.y);
     if (pd < 220 * 220 && (G.bullets.length > 0 || (p.inCar && Math.abs(p.speed) > 200))) ped.panic = 2;
+    // a PD roadblock is trouble too: peds clear the street and run
+    if (G.roadblocks) for (const b of G.roadblocks) {
+      if (dist2(ped.x, ped.y, b.x, b.y) < 260 * 260) {
+        ped.panic = Math.max(ped.panic, 2.5);
+        // run away from the block, along the sidewalk if possible
+        const away = Math.atan2(ped.y - b.y, ped.x - b.x);
+        ped.angle = away;
+        ped.dir = Math.abs(Math.cos(away)) > Math.abs(Math.sin(away)) ? Math.sign(Math.cos(away)) || 1 : ped.dir;
+        ped.axis = Math.abs(Math.cos(away)) > Math.abs(Math.sin(away)) ? 'x' : 'y';
+      }
+    }
     ped.panic = Math.max(0, ped.panic - dt);
     const sp = ped.panic > 0 ? 170 : ped.speed;
     ped.walk += dt * sp * 0.06;
@@ -371,9 +394,20 @@ export function updatePolice(G, dt, audio) {
   const wantCops = stars >= 1 ? Math.min(1 + stars, 6) : 0;
   const policeCars = G.cars.filter(c => c.kind === 'police');
   if (policeCars.length < wantCops) {
-    const a = Math.random() * Math.PI * 2;
-    const sx = clamp(p.x + Math.cos(a) * 700, 80, WORLD - 80);
-    const sy = clamp(p.y + Math.sin(a) * 700, 80, WORLD - 80);
+    // Cruisers arrive from off-screen: 700 px out, outside the 650 px
+    // line-of-sight range, so they never pop into existence already
+    // staring at the player. Near a map edge the clamp used to pull the
+    // spawn inside that range and instantly re-spot a hidden player, so
+    // try a few angles and take the first one that really is far away.
+    let sx = 0, sy = 0, best = -1;
+    for (let t = 0; t < 6; t++) {
+      const a = Math.random() * Math.PI * 2;
+      const x = clamp(p.x + Math.cos(a) * 700, 80, WORLD - 80);
+      const y = clamp(p.y + Math.sin(a) * 700, 80, WORLD - 80);
+      const d = Math.sqrt(dist2(x, y, p.x, p.y));
+      if (d > best) { best = d; sx = x; sy = y; }
+      if (d >= 680) break;
+    }
     const pursuitModel = stars >= 5
       ? CAR_MODELS.find(m => m.name === 'Interceptor') || CAR_MODELS[1]
       : CAR_MODELS[1];
@@ -390,12 +424,20 @@ export function updatePolice(G, dt, audio) {
   }
   if (wantCops === 0) audio.setSiren(false);
   // police car chase
+  // dragnet search: while the player is hidden, cruisers drive to the last
+  // place he was seen and mill around it, instead of homing in on him
+  // through the walls. The ram and bust checks below still use the real
+  // player position, so a cruiser only catches what it can actually reach.
+  const hiddenSearch = G.heat && !G.heat.seen && G.lastSeen && G.wanted > 0;
   for (const c of G.cars) {
     if (c.kind !== 'police') continue;
     const d = Math.sqrt(dist2(c.x, c.y, p.x, p.y));
-    const want = Math.atan2(p.y - c.y, p.x - c.x);
+    const tx = hiddenSearch ? G.lastSeen.x : p.x;
+    const ty = hiddenSearch ? G.lastSeen.y : p.y;
+    const dT = Math.sqrt(dist2(c.x, c.y, tx, ty));
+    const want = Math.atan2(ty - c.y, tx - c.x);
     c.angle += clamp(angDiff(want, c.angle), -2.4 * dt, 2.4 * dt);
-    const target = d > 260 ? 430 : 300;
+    const target = dT > 260 ? 430 : 300;
     c.speed = lerp(c.speed, target, dt * 0.8);
     const nx = c.x + Math.cos(c.angle) * c.speed * dt;
     const ny = c.y + Math.sin(c.angle) * c.speed * dt;
@@ -544,7 +586,16 @@ export function explodeCar(G, car, audio) {
   audio.noise(0.5, 0.4, 700);
   car.hp = 0;
   if (car.kind === 'player') { /* player car destroyed */ }
-  else if (car.kind === 'police') { G.score += 150; }
+  else if (car.kind === 'police') {
+    G.score += 150;
+    // destroying a cruiser is noticed: the heat jumps half a star and the
+    // dragnet answers with a fresh roadblock sooner
+    G.wanted = clamp(G.wanted + 0.5, 0, 5);
+    G.wantedTimer = 0;
+    if (G.blockCd !== undefined) G.blockCd = Math.min(G.blockCd, 3);
+    setToast(G, 'DISPATCH: Officer down! All units, converge on the suspect');
+    if (audio && audio.radio) audio.radio();
+  }
   G.cars = G.cars.filter(c => c !== car || c.kind === 'player');
   if (car.kind !== 'player') G.cars = G.cars.filter(c => c !== car);
 }
