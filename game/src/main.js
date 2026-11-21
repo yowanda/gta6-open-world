@@ -56,6 +56,7 @@ function newGame() {
   G.enemies = []; G.cops = []; G.bullets = []; G.pickups = [];
   G.cars = []; G.peds = [];
   G.heli = null; G.taxi = null; G.race = null;
+  G.bounty = null; G.bountyCd = 0;
   for (const [x, y] of pkgSpots) G.pickups.push({ x, y, kind: 'package', val: 0, t: 0 });
   G.player = makePlayer(420, 460);
   G.cam.x = G.player.x; G.cam.y = G.player.y;
@@ -76,6 +77,8 @@ function respawn() {
   G.money = Math.floor(G.money * 0.9);
   G.health = 100; G.armor = 0; G.wanted = 0; G.cops = [];
   G.heli = null; G.taxi = null; G.race = null;
+  G.bounty = null; G.bountyCd = 0;
+  G.enemies = G.enemies.filter(e => !e.bounty);
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
   G.state = 'playing';
@@ -233,7 +236,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// screenshot staging: ?shot=cover|race|chase|mission
+// screenshot staging: ?shot=cover|bounty|chase|mission
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 if (shot) {

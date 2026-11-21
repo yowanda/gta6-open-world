@@ -2,7 +2,7 @@
 // beach and water, traffic, people, police, bullets and effects.
 import { WORLD, ROAD_HALF, clamp, nightFactor } from './state.js';
 import { pointInBuilding, ROAD_LINES } from './city.js';
-import { RACE_START, RACE_POINTS } from './activities.js';
+import { RACE_START, RACE_POINTS, BOUNTY_REWARD } from './activities.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -35,6 +35,53 @@ export function drawWorld(ctx, G, vw, vh) {
   for (let y = 0; y < WORLD; y += 90) {
     const wob = Math.sin(y * 0.02 + wt) * 8;
     ctx.fillRect(2462 + wob, y, 6, 34);
+  }
+  // Sunset Boardwalk: the pier reaching into the water and the ferris
+  // wheel turning over the sand — the skyline of the new east-side strip.
+  const bw = G.city.boardwalk;
+  if (bw) {
+    ctx.fillStyle = '#8a6b48';
+    ctx.fillRect(bw.pier.x, bw.pier.y, bw.pier.w, bw.pier.h);
+    ctx.fillStyle = '#6e5439';
+    for (let px = bw.pier.x + 8; px < bw.pier.x + bw.pier.w; px += 18) {
+      ctx.fillRect(px, bw.pier.y, 3, bw.pier.h);
+      ctx.fillRect(px, bw.pier.y + bw.pier.h, 4, 10);
+    }
+    const w = bw.wheel;
+    const spin = G.time * 0.25;
+    ctx.strokeStyle = '#3a3f4a'; ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(w.x - 34, w.y + 52); ctx.lineTo(w.x, w.y);
+    ctx.moveTo(w.x + 34, w.y + 52); ctx.lineTo(w.x, w.y);
+    ctx.stroke();
+    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = spin + (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(w.x, w.y);
+      ctx.lineTo(w.x + Math.cos(a) * w.r, w.y + Math.sin(a) * w.r);
+      ctx.stroke();
+      ctx.fillStyle = ['#e74c3c', '#f1c40f', '#3498db', '#2ecc71'][i % 4];
+      ctx.beginPath();
+      ctx.arc(w.x + Math.cos(a) * w.r, w.y + Math.sin(a) * w.r, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffd93d';
+    ctx.beginPath(); ctx.arc(w.x, w.y, 7, 0, Math.PI * 2); ctx.fill();
+    // after dark the wheel wears coloured bulbs around its rim
+    if (nightFactor(G.clockMin) > 0.25) {
+      for (let i = 0; i < 8; i++) {
+        const a = spin + (i / 8) * Math.PI * 2;
+        ctx.fillStyle = ['#ff5a4e', '#ffd93d', '#2ecc71', '#3498db'][i % 4];
+        ctx.beginPath();
+        ctx.arc(w.x + Math.cos(a) * w.r, w.y + Math.sin(a) * w.r, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(60,45,30,0.35)';
+    ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('B O A R D W A L K', 2410, 120);
   }
   // park
   const park = G.city.park;
@@ -126,6 +173,13 @@ export function drawWorld(ctx, G, vw, vh) {
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
+    }
+    // boardwalk stalls get a striped awning on their street side
+    if (b.x >= 2350) {
+      for (let s = 0; s < 6; s++) {
+        ctx.fillStyle = s % 2 === 0 ? '#fff' : '#e74c3c';
+        ctx.fillRect(b.x + s * 12, b.y + b.h, 12, 8);
+      }
     }
   }
   // mission / place markers on the ground
@@ -222,16 +276,21 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('PD', cop.x, cop.y - 13);
   }
-  // enemies (Vultures gang) — the boss is bigger, gold-trimmed, named
+  // enemies (Vultures gang) — the boss is bigger, gold-trimmed, named;
+  // the bruiser is bigger and rust-red; bounty targets wear a red $ tag
   for (const e of G.enemies) {
-    const r = e.boss ? 14 : 10;
-    ctx.fillStyle = e.boss ? '#8e44ad' : '#6c3483';
+    const r = e.boss ? 14 : e.bruiser ? 13 : 10;
+    ctx.fillStyle = e.boss ? '#8e44ad' : e.bruiser ? '#7d2e1d' : '#6c3483';
     ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill();
     if (e.boss) {
       ctx.strokeStyle = '#ffd93d'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 3, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(e.name || 'BOSS', e.x, e.y - r - 10);
+    }
+    if (e.bounty) {
+      ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('$' + BOUNTY_REWARD, e.x, e.y - r - 12);
     }
     ctx.fillStyle = '#f1c27d';
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.angle) * 3, e.y + Math.sin(e.angle) * 3, 5, 0, Math.PI * 2); ctx.fill();

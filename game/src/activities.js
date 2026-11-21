@@ -44,6 +44,7 @@ function dropFare(G, audio) {
 export function updateActivities(G, input, audio, dt) {
   const p = G.player;
   if (G.state !== 'playing' || p.dead) return;
+  updateBounty(G, audio, dt);
 
   // --- Taxi fares: only while driving a Taxi cab ---
   const inTaxi = p.inCar && p.inCar.model.name === 'Taxi';
@@ -112,5 +113,54 @@ export function updateActivities(G, input, audio, dt) {
     setToast(G, 'Race failed — out of time');
     audio.fail();
     G.race = { active: false, cp: 0, t: 0, points: RACE_POINTS, cooldown: 20 };
+  }
+}
+
+// --- Vulture bounty: wanted gang members roam the city, $400 a head ---
+export const BOUNTY_REWARD = 400;   // cash per Vulture taken down
+export const BOUNTY_ROUND = 3;      // targets per round
+export const BOUNTY_WAIT = 45;      // seconds between rounds
+
+// A road spot a good way from the player, so the hunt means driving there.
+function bountySpawnPoint(G) {
+  const p = G.player;
+  for (let tries = 0; tries < 10; tries++) {
+    const pos = randomRoadPos(G.rng);
+    if (Math.hypot(pos.x - p.x, pos.y - p.y) >= 450) return { x: pos.x, y: pos.y };
+  }
+  return { x: clamp(p.x + 500, 100, WORLD - 100), y: clamp(p.y, 100, WORLD - 100) };
+}
+
+export function updateBounty(G, audio, dt) {
+  const p = G.player;
+  if (G.state !== 'playing' || p.dead || G.mission || G.dialog) return;
+  if (!G.bounty) {
+    G.bountyCd = Math.max(0, (G.bountyCd || 0) - dt);
+    if (G.bountyCd > 0) return;
+    // a new round surfaces: three wanted Vultures, red $ on the minimap
+    for (let i = 0; i < BOUNTY_ROUND; i++) {
+      const pos = bountySpawnPoint(G);
+      G.enemies.push({
+        x: pos.x, y: pos.y, angle: 0, hp: 60,
+        fireCd: 1 + Math.random(), gang: true, bounty: true,
+      });
+    }
+    G.bounty = { left: BOUNTY_ROUND, total: BOUNTY_ROUND, t: 0 };
+    setToast(G, 'BOUNTY: three wanted Vultures are loose — $' + BOUNTY_REWARD + ' each, red $ on the map');
+    audio.mission();
+    return;
+  }
+  const b = G.bounty;
+  b.t += dt;
+  if (b.left <= 0) {
+    const pay = BOUNTY_ROUND * BOUNTY_REWARD;
+    G.money += pay;
+    G.score += 600;
+    G.stats.bounties++;
+    G.stats.bountyCash = (G.stats.bountyCash || 0) + pay;
+    setToast(G, 'Bounty round cleared! +$' + pay);
+    audio.cash();
+    G.bounty = null;
+    G.bountyCd = BOUNTY_WAIT;
   }
 }

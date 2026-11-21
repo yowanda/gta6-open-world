@@ -2,7 +2,8 @@
 // speed, clock, toasts, dialogs) and the menu / pause / end screens.
 import { WORLD, ROAD_HALF, clamp } from './state.js';
 import { ROAD_LINES } from './city.js';
-import { currentStep } from './missions.js';
+import { currentStep, STORY } from './missions.js';
+import { BOUNTY_REWARD } from './activities.js';
 
 export function drawHUD(ctx, G, vw, vh) {
   const p = G.player;
@@ -32,6 +33,12 @@ export function drawHUD(ctx, G, vw, vh) {
 
   // --- minimap (top-right, below stars)
   drawMinimap(ctx, G, vw - 212, 86, 200, 200);
+  // bounty cooldown countdown under the minimap
+  if (!G.bounty && G.bountyCd > 0) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
+    ctx.fillText('Next Vulture bounty in ' + Math.ceil(G.bountyCd) + 's', vw - 112, 330);
+  }
 
   // --- mission objective (top-centre)
   const step = currentStep(G);
@@ -61,8 +68,8 @@ export function drawHUD(ctx, G, vw, vh) {
     ctx.fillText('Head to the Pelican Motel — follow the yellow marker', vw / 2, 34);
   }
 
-  // --- side activity (taxi fare / street race) under the mission panel
-  if (G.taxi || (G.race && G.race.active)) {
+  // --- side activity (taxi fare / street race / bounty) under the mission panel
+  if (G.taxi || (G.race && G.race.active) || G.bounty) {
     ctx.textAlign = 'center';
     panel(ctx, vw / 2 - 260, 72, 520, 34);
     ctx.font = 'bold 14px sans-serif';
@@ -71,6 +78,9 @@ export function drawHUD(ctx, G, vw, vh) {
       const cp = G.race.points[G.race.cp];
       const d = cp ? Math.round(Math.hypot(p.x - cp.x, p.y - cp.y)) : 0;
       ctx.fillText('STREET RACE  •  CP ' + (G.race.cp + 1) + '/' + G.race.points.length + '  •  ' + G.race.t.toFixed(1) + 's  •  ' + d + ' m', vw / 2, 94);
+    } else if (G.bounty) {
+      ctx.fillStyle = '#ff5a4e';
+      ctx.fillText('VULTURE BOUNTY  •  ' + G.bounty.left + '/' + G.bounty.total + ' left  •  $' + BOUNTY_REWARD + ' each', vw / 2, 94);
     } else if (G.taxi) {
       ctx.fillStyle = '#2ecc71';
       const d = Math.round(Math.hypot(p.x - G.taxi.x, p.y - G.taxi.y));
@@ -185,6 +195,15 @@ function drawMinimap(ctx, G, x, y, w, h) {
   // park
   ctx.fillStyle = '#7fb069';
   ctx.fillRect(x + G.city.park.x * s, y + G.city.park.y * s, G.city.park.w * s, G.city.park.h * s);
+  // boardwalk pier + ferris wheel
+  if (G.city.boardwalk) {
+    ctx.fillStyle = '#8a6b48';
+    ctx.fillRect(x + G.city.boardwalk.pier.x * s, y + G.city.boardwalk.pier.y * s, G.city.boardwalk.pier.w * s, Math.max(2, G.city.boardwalk.pier.h * s));
+    ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x + G.city.boardwalk.wheel.x * s, y + G.city.boardwalk.wheel.y * s, Math.max(3, G.city.boardwalk.wheel.r * s), 0, Math.PI * 2);
+    ctx.stroke();
+  }
   // roads
   ctx.fillStyle = '#3d3d46';
   for (const l of ROAD_LINES) {
@@ -216,6 +235,14 @@ function drawMinimap(ctx, G, x, y, w, h) {
     ctx.fillStyle = '#2ecc71';
     ctx.beginPath(); ctx.arc(x + G.race.points[G.race.cp].x * s, y + G.race.points[G.race.cp].y * s, 4, 0, Math.PI * 2); ctx.fill();
   }
+  // bounty targets (red $ blips)
+  if (G.bounty) {
+    ctx.fillStyle = '#ff5a4e';
+    for (const e of G.enemies) {
+      if (!e.bounty) continue;
+      ctx.beginPath(); ctx.arc(x + e.x * s, y + e.y * s, 4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   // player arrow
   const p = G.player;
   ctx.save();
@@ -227,8 +254,12 @@ function drawMinimap(ctx, G, x, y, w, h) {
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
   ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText('SOLARA BAY', x, y - 10);
+  // city name on its own chip under the map — the old label sat on the
+  // stars panel's bottom edge and the two texts collided
+  ctx.fillStyle = 'rgba(10,14,20,0.62)';
+  ctx.beginPath(); ctx.roundRect(x - 6, y + h + 8, w + 12, 20, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('SOLARA BAY', x + w / 2, y + h + 22);
 }
 
 export function drawMenu(ctx, G, vw, vh) {
@@ -297,6 +328,9 @@ export function drawMenu(ctx, G, vw, vh) {
       '  Ironworks Gun Shop and clear heat at the Pay \'n\' Spray.',
       '• Hidden packages around the city pay $150 each. Progress saves',
       '  automatically at the Pelican Motel safehouse.',
+      '• Vulture bounties: three wanted gang members roam the city —',
+      '  take them down for $400 each (red $ on the minimap).',
+      '• The Sunset Boardwalk has shops, a pier and a ferris wheel.',
       '• Press P to pause, M to mute.',
     ];
     lines.forEach((l, i) => ctx.fillText(l, vw / 2 - 320, vh * 0.2 + 36 + i * 24));
@@ -336,7 +370,8 @@ export function drawEndScreen(ctx, G, vw, vh, kind) {
     ctx.fillText('LEGEND OF SOLARA BAY', vw / 2, vh * 0.36);
     ctx.fillStyle = '#fff'; ctx.font = '18px sans-serif';
     ctx.fillText('Rico Vega pulled the Big Score and sailed off into the sunset.', vw / 2, vh * 0.36 + 40);
-    ctx.fillText('Final score: ' + G.score.toLocaleString('en-US') + '   •   Missions: ' + G.missionsDone + '/8   •   Cars stolen: ' + G.carsStolen, vw / 2, vh * 0.36 + 74);
+    ctx.fillText('Final score: ' + G.score.toLocaleString('en-US') + '   •   Missions: ' + G.missionsDone + '/' + STORY.length + '   •   Cars stolen: ' + G.carsStolen, vw / 2, vh * 0.36 + 74);
+    ctx.fillText('Bounties: ' + (G.stats.bounties || 0) + ' rounds cleared   •   Bounty cash: $' + (G.stats.bountyCash || 0).toLocaleString('en-US') + '   •   Taxi fares: ' + (G.stats.fares || 0), vw / 2, vh * 0.36 + 104);
   }
   ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 20px sans-serif';
   ctx.fillText('Press Enter to continue', vw / 2, vh * 0.62);

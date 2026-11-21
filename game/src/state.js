@@ -71,11 +71,13 @@ export function createGame() {
     keys: {},
     shotMode: null,          // screenshot staging name
     muted: false,
-    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0 },
+    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0, bounties: 0, bountyCash: 0 },
     heli: null,            // police helicopter at 4+ stars {x, y, angle}
     taxi: null,            // taxi fare job {stage, x, y, fare, t}
     race: null,            // street race {cp, t, points, cooldown}
     raceFlash: 0,          // timer for the race-start banner
+    bounty: null,          // Vulture bounty round {left, total, t} while one runs
+    bountyCd: 0,           // seconds until the next bounty round may start
     saveSlot: 'solara-bay-save-v1',
   };
 }
@@ -94,4 +96,5 @@ export const CAR_MODELS = [
   { name: 'Van', w: 50, l: 104, speed: 300, accel: 200 },
   { name: 'Sports', w: 44, l: 80, speed: 480, accel: 360 },
   { name: 'Truck', w: 54, l: 120, speed: 280, accel: 180 },
+  { name: 'Interceptor', w: 46, l: 88, speed: 520, accel: 400 },
 ];

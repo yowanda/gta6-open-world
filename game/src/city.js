@@ -80,8 +80,27 @@ export function generateCity() {
   // Beach palms along the east strip
   for (let i = 0; i < 18; i++) trees.push({ x: 2380 + rng() * 90, y: 60 + rng() * 2480, r: 11 + rng() * 5, palm: true });
 
+  // Sunset Boardwalk: shop stalls on the sand strip, each a small labelled
+  // building the player can walk between and take cover behind. Their y
+  // slots sit in the gaps between the road lines, never on a road.
+  const stallNames = ['ARCADE', 'SURF SHOP', 'TACOS', 'PIER GIFTS', 'SLUSH', 'BOARD RENTALS'];
+  const stallYs = [500, 760, 1040, 1560, 1820, 2080];
+  for (let i = 0; i < stallNames.length; i++) {
+    buildings.push({
+      x: 2362, y: stallYs[i], w: 72, h: 46,
+      color: pick(rng, ['#e07a5f', '#7fb3c8', '#f2c14e', '#a3b18a', '#e07a9f', '#8d99ae']),
+      height: 6 + rng() * 6,
+      roof: rng(),
+      label: stallNames[i],
+    });
+  }
+
   return {
     buildings, trees, lamps, districts,
+    boardwalk: {
+      pier: { x: 2470, y: 1282, w: 95, h: 36 },
+      wheel: { x: 2430, y: 1300, r: 55 },
+    },
     beach: { x0: 2350, waterX: 2470 },   // sand from 2350, water from 2470
     park: { x: ROAD_LINES[4] + ROAD_HALF + 14, y: ROAD_LINES[4] + ROAD_HALF + 14, w: ROAD_GAP - 2 * ROAD_HALF - 28, h: ROAD_GAP - 2 * ROAD_HALF - 28 },
     safehouse: { x: 420, y: 420 },

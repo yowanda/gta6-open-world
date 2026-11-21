@@ -374,7 +374,10 @@ export function updatePolice(G, dt, audio) {
     const a = Math.random() * Math.PI * 2;
     const sx = clamp(p.x + Math.cos(a) * 700, 80, WORLD - 80);
     const sy = clamp(p.y + Math.sin(a) * 700, 80, WORLD - 80);
-    const pc = makeCar(sx, sy, Math.atan2(p.y - sy, p.x - sx), CAR_MODELS[1], '#1e3a5f', 'police');
+    const pursuitModel = stars >= 5
+      ? CAR_MODELS.find(m => m.name === 'Interceptor') || CAR_MODELS[1]
+      : CAR_MODELS[1];
+    const pc = makeCar(sx, sy, Math.atan2(p.y - sy, p.x - sx), pursuitModel, '#1e3a5f', 'police');
     pc.siren = true;
     G.cars.push(pc);
     audio.setSiren(true);
@@ -458,6 +461,7 @@ export function updateCombat(G, dt, audio) {
           spawnParticles(G, b.x, b.y, 5, '#e74c3c');
           if (e.hp <= 0) {
             G.kills++; G.score += 100;
+            if (e.bounty && G.bounty) G.bounty.left--;
             spawnParticles(G, e.x, e.y, 14, '#c0392b');
             G.pickups.push({ x: e.x, y: e.y, kind: 'cash', val: 60 + Math.floor(Math.random() * 80), t: 0 });
             audio.hit();

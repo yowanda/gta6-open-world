@@ -1,4 +1,4 @@
-// missions.js — the story of Rico Vega in Solara Bay: six missions, a fixer,
+// missions.js — the story of Rico Vega in Solara Bay: nine missions, a fixer,
 // a rival gang, and a final score. Each mission is steps with markers and rewards.
 import { dist2 } from './state.js';
 import { setToast, spawnParticles } from './entities.js';
@@ -120,6 +120,25 @@ export const STORY = [
     spawnEnemies: [{ x: 2400, y: 1300, n: 7 }],
     spawnBoss: { x: 2400, y: 1300, hp: 220, name: 'Dario Voss' },
   },
+  {
+    id: 'm9', title: "Rook's Reckoning", reward: 15000,
+    brief: 'Dario is gone, but his lieutenant Rook has taken the Vultures and the whole Sunset Boardwalk. Mara wants the ledger he keeps — and Rook out of Solara Bay for good.',
+    steps: [
+      { type: 'goto', x: 2400, y: 1300, label: 'Get to the Sunset Boardwalk', radius: 90 },
+      { type: 'kill', count: 7, label: "Break Rook's crew (0/7)" },
+      { type: 'collect', label: "Take Rook's ledger" },
+      { type: 'escape', label: 'Escape the PD dragnet', heat: 4 },
+      { type: 'drive', x: 420, y: 420, label: 'Get back to the Pelican Motel', radius: 70 },
+    ],
+    dialog: [
+      'MARA: Voss is fish food, but his dog Rook picked up the leash. He runs the Boardwalk now.',
+      'RICO: And the ledger?',
+      'MARA: Rook keeps it on him. Bring it back and the Vultures are finished — for good this time.',
+    ],
+    spawnEnemies: [{ x: 2380, y: 1300, n: 5 }],
+    spawnBruiser: { x: 2320, y: 1360, hp: 130 },
+    spawnBoss: { x: 2460, y: 1300, hp: 260, name: 'Rook' },
+  },
 ];
 
 export function startMission(G, idx, audio) {
@@ -212,6 +231,14 @@ export function updateMissions(G, input, audio, dt) {
         x: def.spawnBoss.x, y: def.spawnBoss.y, angle: 0,
         hp: def.spawnBoss.hp, fireCd: 1, gang: true,
         boss: true, name: def.spawnBoss.name,
+      });
+    }
+    // bruiser: a heavy hitter, bigger and twice as hard to drop
+    if (def.spawnBruiser) {
+      G.enemies.push({
+        x: def.spawnBruiser.x, y: def.spawnBruiser.y, angle: 0,
+        hp: def.spawnBruiser.hp, fireCd: 1.2, gang: true,
+        bruiser: true, name: 'Bruiser',
       });
     }
     setToast(G, 'The Vultures are here — fight!');
