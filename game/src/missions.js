@@ -88,6 +88,38 @@ export const STORY = [
     ],
     spawnEnemies: [{ x: 1430, y: 1170, n: 6 }],
   },
+  {
+    id: 'm7', title: 'The Getaway Driver', reward: 4500,
+    brief: 'Mara has a courier job with a hard deadline: lift the casino cash bag and drive it across town to the marina before the PD roadblocks go up.',
+    steps: [
+      { type: 'goto', x: 1430, y: 1170, label: 'Get to the Neon Palms Casino', radius: 90 },
+      { type: 'collect', label: 'Grab the cash bag' },
+      { type: 'timedrive', x: 2400, y: 1300, label: 'Race the cash to the marina yacht', radius: 80, secs: 75 },
+    ],
+    dialog: [
+      'MARA: Courier job, Rico. Bag is at the casino. Marina yacht leaves in 75 seconds — miss it and the money walks.',
+      'RICO: Seventy-five seconds across town? You like me that much?',
+      'MARA: I like you alive. Drive like it.',
+    ],
+  },
+  {
+    id: 'm8', title: "Dario's Last Stand", reward: 12000,
+    brief: 'Dario Voss is loading his yacht at the marina to skip town with Mara\'s money. End it there — him, his crew, and the whole Vultures problem.',
+    steps: [
+      { type: 'goto', x: 2400, y: 1300, label: 'Get to the marina yacht', radius: 90 },
+      { type: 'kill', count: 8, label: "Take down Dario's crew (0/8)" },
+      { type: 'collect', label: "Take back Mara's money" },
+      { type: 'escape', label: 'Escape the PD dragnet', heat: 5 },
+      { type: 'drive', x: 420, y: 420, label: 'Get back to the Pelican Motel', radius: 70 },
+    ],
+    dialog: [
+      'MARA: Voss is at the marina, loading his yacht with MY money. He does not leave Solara Bay.',
+      'RICO: Eight of them, and Voss himself. That\'s the whole crew.',
+      'MARA: Then finish it, Rico. Finish all of it.',
+    ],
+    spawnEnemies: [{ x: 2400, y: 1300, n: 7 }],
+    spawnBoss: { x: 2400, y: 1300, hp: 220, name: 'Dario Voss' },
+  },
 ];
 
 export function startMission(G, idx, audio) {
@@ -123,6 +155,8 @@ export function updateMarker(G) {
 
 function advanceStep(G, audio) {
   G.mission.step++;
+  G.mission.stepStartT = undefined;
+  G.mission.timeLeft = undefined;
   audio.pickup();
   if (G.mission.step >= G.mission.def.steps.length) completeMission(G, audio);
   else updateMarker(G);
@@ -172,10 +206,30 @@ export function updateMissions(G, input, audio, dt) {
         angle: 0, hp: 60, fireCd: 1 + Math.random(), gang: true,
       });
     }
+    // story boss: Dario Voss himself, tougher and worth the finale
+    if (def.spawnBoss) {
+      G.enemies.push({
+        x: def.spawnBoss.x, y: def.spawnBoss.y, angle: 0,
+        hp: def.spawnBoss.hp, fireCd: 1, gang: true,
+        boss: true, name: def.spawnBoss.name,
+      });
+    }
     setToast(G, 'The Vultures are here — fight!');
   }
 
-  if (s.type === 'goto' || s.type === 'drive') {
+  // timed steps: the clock runs from the moment the step starts
+  if (s.secs && m.stepStartT === undefined) m.stepStartT = G.time;
+  if (s.secs && m.stepStartT !== undefined) {
+    m.timeLeft = Math.max(0, s.secs - (G.time - m.stepStartT));
+    if (m.timeLeft <= 0) {
+      setToast(G, 'Too slow — ' + m.def.title + ' failed, try again');
+      audio.fail();
+      startMission(G, G.missionIdx, audio);
+      return;
+    }
+  }
+
+  if (s.type === 'goto' || s.type === 'drive' || s.type === 'timedrive') {
     if (dist2(p.x, p.y, s.x, s.y) < (s.radius || 70) * (s.radius || 70)) advanceStep(G, audio);
   } else if (s.type === 'talk') {
     if (dist2(p.x, p.y, 420, 420) < 70 * 70) {
@@ -197,7 +251,8 @@ export function updateMissions(G, input, audio, dt) {
     if (!G.pickups.some(pk => pk.mission)) advanceStep(G, audio);
   } else if (s.type === 'kill') {
     const done = G.kills - m.killsAtStart;
-    s.label = 'Deal with the Vultures (' + Math.min(done, s.count) + '/' + s.count + ')';
+    if (!m.killLabel) m.killLabel = s.label.replace(/ \(\d+\/\d+\)$/, '');
+    s.label = m.killLabel + ' (' + Math.min(done, s.count) + '/' + s.count + ')';
     if (done >= s.count) advanceStep(G, audio);
     else if (G.enemies.length === 0 && m.spawned && done < s.count) {
       // stragglers: respawn remaining

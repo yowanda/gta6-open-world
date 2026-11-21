@@ -17,6 +17,15 @@ export function mulberry32(seed) {
 
 export function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 export function lerp(a, b, t) { return a + (b - a) * t; }
+// nightFactor: 0 in daylight, up to 1 in deep night. Shared by the main
+// loop (screen tint) and the renderer (headlights, lamp glow, spotlights).
+export function nightFactor(clockMin) {
+  const h = (clockMin / 60) % 24;
+  if (h >= 6 && h < 18) return 0;
+  if (h >= 18 && h < 20) return (h - 18) / 2;
+  if (h >= 20 || h < 5) return 1;
+  return (6 - h) * 0.5 + 0.2;
+}
 export function dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
 export function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
@@ -62,7 +71,11 @@ export function createGame() {
     keys: {},
     shotMode: null,          // screenshot staging name
     muted: false,
-    stats: { shots: 0, hits: 0 },
+    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0 },
+    heli: null,            // police helicopter at 4+ stars {x, y, angle}
+    taxi: null,            // taxi fare job {stage, x, y, fare, t}
+    race: null,            // street race {cp, t, points, cooldown}
+    raceFlash: 0,          // timer for the race-start banner
     saveSlot: 'solara-bay-save-v1',
   };
 }

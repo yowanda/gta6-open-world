@@ -1,11 +1,12 @@
 // main.js — Solara Bay: an original open-world crime game.
 // Boots the canvas, runs the loop, and wires city, entities, missions, HUD and audio.
-import { createGame, clamp, lerp, dist2 } from './state.js';
+import { createGame, clamp, lerp, dist2, nightFactor } from './state.js';
 import { generateCity } from './city.js';
 import { Input } from './input.js';
 import { AudioSys } from './audio.js';
 import { makePlayer, spawnTraffic, spawnPeds, updatePlayer, updateTraffic, updatePeds, updatePolice, updateCombat, setToast, exitCar } from './entities.js';
 import { startMission, updateMissions, currentStep } from './missions.js';
+import { updateActivities } from './activities.js';
 import { drawWorld } from './render.js';
 import { drawHUD, drawMenu, drawPause, drawEndScreen } from './hud.js';
 import { saveGame, loadSave, applySave, saveInfo } from './save.js';
@@ -54,6 +55,7 @@ function newGame() {
   G.wanted = 0; G.mission = null; G.missionIdx = 0; G.nextMissionAt = undefined;
   G.enemies = []; G.cops = []; G.bullets = []; G.pickups = [];
   G.cars = []; G.peds = [];
+  G.heli = null; G.taxi = null; G.race = null;
   for (const [x, y] of pkgSpots) G.pickups.push({ x, y, kind: 'package', val: 0, t: 0 });
   G.player = makePlayer(420, 460);
   G.cam.x = G.player.x; G.cam.y = G.player.y;
@@ -73,6 +75,7 @@ function respawn() {
   const fee = G.money - Math.floor(G.money * 0.9); // 10% hospital fee, taken before the deduction
   G.money = Math.floor(G.money * 0.9);
   G.health = 100; G.armor = 0; G.wanted = 0; G.cops = [];
+  G.heli = null; G.taxi = null; G.race = null;
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
   G.state = 'playing';
@@ -114,13 +117,9 @@ function updateInteractions(dt) {
   }
 }
 
-// --- day / night lighting ---
+// --- day / night lighting (0 = day, 1 = deep night) ---
 function darkness() {
-  const h = (G.clockMin / 60) % 24;
-  if (h >= 6 && h < 18) return 0;
-  if (h >= 18 && h < 20) return (h - 18) / 2 * 0.45;
-  if (h >= 20 || h < 5) return 0.45;
-  return (6 - h) / 1 * 0.45 * 0.5 + 0.2;
+  return nightFactor(G.clockMin) * 0.45;
 }
 
 let last = performance.now();
@@ -166,6 +165,7 @@ function frame(now) {
       updatePolice(G, dt, audio);
       updateCombat(G, dt, audio);
       updateMissions(G, input, audio, dt);
+      updateActivities(G, input, audio, dt);
       updateInteractions(dt);
     }
     // camera follows player with velocity look-ahead
@@ -233,7 +233,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// screenshot staging: ?shot=cover|drive|chase|mission
+// screenshot staging: ?shot=cover|race|chase|mission
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 if (shot) {

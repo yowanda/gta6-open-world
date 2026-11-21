@@ -177,9 +177,13 @@ export function updatePlayer(G, input, audio, dt) {
     const nx = c.x + Math.cos(c.angle) * c.speed * dt;
     const ny = c.y + Math.sin(c.angle) * c.speed * dt;
     const hit = collideCircle(G.city, nx, ny, 22);
-    if (Math.abs(hit.x - nx) > 0.5 || Math.abs(hit.y - ny) > 0.5) {
+    c.crashCd = Math.max(0, (c.crashCd || 0) - dt);
+    if ((Math.abs(hit.x - nx) > 0.5 || Math.abs(hit.y - ny) > 0.5) && c.crashCd <= 0) {
+      // one crash penalty per half second: scraping along a wall must slide,
+      // not grind all momentum to zero frame after frame while pinned to it
       if (Math.abs(c.speed) > 160) { audio.crash(); spawnParticles(G, c.x, c.y, 8, '#f39c12'); }
       c.speed *= 0.4;
+      c.crashCd = 0.5;
     }
     c.x = hit.x; c.y = hit.y;
     // car-car bump
@@ -192,7 +196,10 @@ export function updatePlayer(G, input, audio, dt) {
         const ux = (c.x - o.x) / dd, uy = (c.y - o.y) / dd;
         c.x += ux * push; c.y += uy * push;
         if (o.kind === 'traffic' && Math.abs(c.speed) > 60) { o.speed = Math.max(0, o.speed - 60); audio.crash(); }
-        if (Math.abs(c.speed) > 200) { c.speed *= 0.7; }
+        // gentle scrape, not a per-frame speed collapse: the positional push
+        // above already separates the cars, so a hard cut here used to pin
+        // the player to a stop whenever cruisers piled on
+        if (Math.abs(c.speed) > 200) { c.speed *= 0.995; }
       }
     }
     p.x = c.x; p.y = c.y; p.angle = c.angle; p.speed = c.speed;
@@ -336,6 +343,26 @@ export function updatePolice(G, dt, audio) {
   G.wantedTimer += dt;
   let copNear = false;
   for (const c of G.cars) if (c.kind === 'police' && dist2(c.x, c.y, p.x, p.y) < 500 * 500) copNear = true;
+  // police helicopter at 4+ stars: hovers over the player, spotlight on,
+  // and the heat never fades while it watches.
+  const stars0 = Math.floor(G.wanted + 0.001);
+  if (stars0 >= 4) {
+    if (!G.heli) {
+      G.heli = { x: p.x + 300, y: p.y - 300, angle: 0 };
+      setToast(G, 'PD helicopter overhead — break line of sight!');
+      audio.setSiren(true);
+    }
+    const h = G.heli;
+    const ha = Math.atan2(p.y - h.y, p.x - h.x);
+    h.angle += clamp(angDiff(ha, h.angle), -2 * dt, 2 * dt);
+    const hd = Math.sqrt(dist2(h.x, h.y, p.x, p.y));
+    const hs = hd > 120 ? 300 : 140;
+    h.x += Math.cos(h.angle) * hs * dt;
+    h.y += Math.sin(h.angle) * hs * dt;
+    copNear = true;
+  } else if (G.heli) {
+    G.heli = null;
+  }
   if (!copNear && G.wantedTimer > 25 && G.wanted > 0) {
     G.wanted = Math.max(0, G.wanted - dt * 0.12);
     if (G.wanted < 0.5) G.wanted = 0;
@@ -370,12 +397,19 @@ export function updatePolice(G, dt, audio) {
     const nx = c.x + Math.cos(c.angle) * c.speed * dt;
     const ny = c.y + Math.sin(c.angle) * c.speed * dt;
     const hit = collideCircle(G.city, nx, ny, 22);
-    if (Math.abs(hit.x - nx) > 0.5 || Math.abs(hit.y - ny) > 0.5) c.speed *= 0.5;
+    c.crashCd = Math.max(0, (c.crashCd || 0) - dt);
+    if ((Math.abs(hit.x - nx) > 0.5 || Math.abs(hit.y - ny) > 0.5) && c.crashCd <= 0) {
+      c.speed *= 0.5;
+      c.crashCd = 0.5;
+    }
     c.x = hit.x; c.y = hit.y;
-    // ram the player
-    if (p.inCar && d < 60) {
-      p.inCar.speed *= 0.6;
+    // ram the player — with a cooldown per cruiser, so a chase stays
+    // escapable instead of four cars pinning the player to a stop
+    c.ramCd = Math.max(0, (c.ramCd || 0) - dt);
+    if (p.inCar && d < 60 && c.ramCd <= 0) {
+      p.inCar.speed *= 0.75;
       c.speed *= 0.7;
+      c.ramCd = 0.8;
       if (Math.random() < dt * 2) audio.crash();
     }
     if (!p.inCar && d < 34 && Math.abs(p.speed || 0) < 60) {

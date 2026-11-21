@@ -48,11 +48,42 @@ export function drawHUD(ctx, G, vw, vh) {
       ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
       ctx.fillText(d + ' m', vw / 2 + 230, 52);
     }
+    // timed mission countdown
+    if (G.mission.timeLeft !== undefined) {
+      ctx.fillStyle = G.mission.timeLeft < 15 ? '#ff5a4e' : '#ffd93d';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(Math.ceil(G.mission.timeLeft) + 's', vw / 2 + 230, 32);
+    }
   } else if (G.missionsDone === 0) {
     ctx.textAlign = 'center';
     panel(ctx, vw / 2 - 200, 12, 400, 34);
     ctx.fillStyle = '#fff'; ctx.font = '13px sans-serif';
     ctx.fillText('Head to the Pelican Motel — follow the yellow marker', vw / 2, 34);
+  }
+
+  // --- side activity (taxi fare / street race) under the mission panel
+  if (G.taxi || (G.race && G.race.active)) {
+    ctx.textAlign = 'center';
+    panel(ctx, vw / 2 - 260, 72, 520, 34);
+    ctx.font = 'bold 14px sans-serif';
+    if (G.race && G.race.active) {
+      ctx.fillStyle = '#2ecc71';
+      const cp = G.race.points[G.race.cp];
+      const d = cp ? Math.round(Math.hypot(p.x - cp.x, p.y - cp.y)) : 0;
+      ctx.fillText('STREET RACE  •  CP ' + (G.race.cp + 1) + '/' + G.race.points.length + '  •  ' + G.race.t.toFixed(1) + 's  •  ' + d + ' m', vw / 2, 94);
+    } else if (G.taxi) {
+      ctx.fillStyle = '#2ecc71';
+      const d = Math.round(Math.hypot(p.x - G.taxi.x, p.y - G.taxi.y));
+      ctx.fillText(G.taxi.stage === 'pickup'
+        ? 'TAXI FARE  •  Pick up the passenger  •  ' + d + ' m'
+        : 'TAXI FARE  •  Drop off the passenger  •  $' + G.taxi.fare + '  •  ' + d + ' m', vw / 2, 94);
+    }
+  }
+  // --- helicopter warning
+  if (G.heli) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('POLICE HELICOPTER OVERHEAD — the heat will not fade while it watches', vw / 2, 122);
   }
 
   // --- bottom-right: weapon / ammo / speed
@@ -172,6 +203,19 @@ function drawMinimap(ctx, G, x, y, w, h) {
   // police blips
   ctx.fillStyle = '#2d6bff';
   for (const c of G.cars) if (c.kind === 'police') { ctx.beginPath(); ctx.arc(x + c.x * s, y + c.y * s, 3, 0, Math.PI * 2); ctx.fill(); }
+  // helicopter blip (red ring) + taxi / race blips (green)
+  if (G.heli) {
+    ctx.strokeStyle = '#ff5a4e'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x + G.heli.x * s, y + G.heli.y * s, 5, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (G.taxi) {
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(x + G.taxi.x * s, y + G.taxi.y * s, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  if (G.race && G.race.active && G.race.points[G.race.cp]) {
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath(); ctx.arc(x + G.race.points[G.race.cp].x * s, y + G.race.points[G.race.cp].y * s, 4, 0, Math.PI * 2); ctx.fill();
+  }
   // player arrow
   const p = G.player;
   ctx.save();
@@ -292,7 +336,7 @@ export function drawEndScreen(ctx, G, vw, vh, kind) {
     ctx.fillText('LEGEND OF SOLARA BAY', vw / 2, vh * 0.36);
     ctx.fillStyle = '#fff'; ctx.font = '18px sans-serif';
     ctx.fillText('Rico Vega pulled the Big Score and sailed off into the sunset.', vw / 2, vh * 0.36 + 40);
-    ctx.fillText('Final score: ' + G.score.toLocaleString('en-US') + '   •   Missions: ' + G.missionsDone + '/6   •   Cars stolen: ' + G.carsStolen, vw / 2, vh * 0.36 + 74);
+    ctx.fillText('Final score: ' + G.score.toLocaleString('en-US') + '   •   Missions: ' + G.missionsDone + '/8   •   Cars stolen: ' + G.carsStolen, vw / 2, vh * 0.36 + 74);
   }
   ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 20px sans-serif';
   ctx.fillText('Press Enter to continue', vw / 2, vh * 0.62);
