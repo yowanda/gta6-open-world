@@ -1,36 +1,44 @@
-// main.ts — Solara Bay entry program for make.fun gta6-01.
-// Node 22, standard library only. It hands the game in: copies game/ and
-// screenshots/ from this repository into the output directory and writes
-// dossier.json there with buildDossier from vendor/makefun-game.ts.
-// Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
-import { buildDossier } from './vendor/makefun-game.ts';
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Solara Bay — entry program for make.fun gta6-01.
+// Copies game/ and screenshots/ into the output directory, then writes
+// dossier.json with buildDossier from vendor/makefun-game.ts.
+// Node 22, standard library only. No build step, no network.
+//
+// The output directory is a fresh mount on the grader, so this program
+// only creates it (mkdir, recursive) and never deletes anything inside it.
+// Deleting would fail on a mount point, so there is no cleanup step here.
 
-// The repository root is the directory this file lives in.
-const repoRoot = dirname(fileURLToPath(import.meta.url));
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildDossier } from './vendor/makefun-game.ts';
+
+// Where the entry goes: the harness mounts /output, or MAKEFUN_OUTPUT_DIR
+// stands in for it when running locally.
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// Start from a clean output directory so a stale file can never leak into
-// the entry and so two runs write byte-identical output.
-rmSync(outDir, { recursive: true, force: true });
-mkdirSync(outDir, { recursive: true });
-
-// Copy the two handed-in trees verbatim, in a fixed order.
-for (const tree of ['game', 'screenshots']) {
-  const src = join(repoRoot, tree);
-  if (!existsSync(src)) throw new Error(`main.ts: ${tree}/ is missing from the repository`);
-  cpSync(src, join(outDir, tree), { recursive: true });
-}
-
-// The dossier is built from the copied trees, with the competition's caps.
-const dossier = buildDossier(outDir, {
+// The dossier caps from the competition gate.
+const caps = {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   game_max_files: 993,
   game_max_bytes: 50331648,
-});
-const dossierPath = join(outDir, 'dossier.json');
-writeFileSync(dossierPath, dossier);
-console.log(`main.ts: wrote ${dossierPath} (${dossier.length} bytes)`);
+  game_path_max_bytes: 1000,
+};
+
+// The two source trees, copied in this order: the game first, then its shots.
+const trees = ['game', 'screenshots'];
+
+// Make the output directory; it is mounted empty, so creating it is enough.
+mkdirSync(outDir, { recursive: true });
+
+for (const name of trees) {
+  const from = join(import.meta.dirname, name);
+  if (!existsSync(from)) {
+    throw new Error(`main.ts: ${name}/ is missing from the repository, cannot hand in`);
+  }
+  cpSync(from, join(outDir, name), { recursive: true });
+}
+
+// Build the dossier from what was just copied and write it out.
+const dossier = buildDossier(outDir, caps);
+writeFileSync(join(outDir, 'dossier.json'), dossier);
+console.log(`dossier.json written: ${dossier.length} bytes`);
