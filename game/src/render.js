@@ -5,6 +5,7 @@ import { pointInBuilding, ROAD_LINES } from './city.js';
 import { RACE_START, RACE_POINTS, BOUNTY_REWARD } from './activities.js';
 import { drawDocks, drawBuoys, drawBoats } from './boats.js';
 import { drawDragnet } from './police.js';
+import { drawTurfZones, drawBarricades, GANGS } from './gangwar.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -184,6 +185,9 @@ export function drawWorld(ctx, G, vw, vh) {
       }
     }
   }
+  // turf war: each zone wears its owner's colour on the ground, so the
+  // map reads as territory before a single shot is fired
+  drawTurfZones(ctx, G, vw, vh);
   // mission / place markers on the ground
   for (const m of G.markers) {
     const mx = m.follow ? G.player.x : m.x, my = m.follow ? G.player.y : m.y;
@@ -220,6 +224,8 @@ export function drawWorld(ctx, G, vw, vh) {
   for (const c of G.cars) drawCar(ctx, c, G);
   // speedboats ride on the water, above the docks
   drawBoats(ctx, G);
+  // war barricades: striped barriers and sandbags across the street
+  drawBarricades(ctx, G);
   // headlight cones after dark: the player's car and police cruisers cut the night
   if (night > 0.25) {
     for (const c of G.cars) {
@@ -286,11 +292,20 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillText('PD', cop.x, cop.y - 13);
   }
   // enemies (Vultures gang) — the boss is bigger, gold-trimmed, named;
-  // the bruiser is bigger and rust-red; bounty targets wear a red $ tag
+  // the bruiser is bigger and rust-red; bounty targets wear a red $ tag.
+  // Turf fighters wear their gang's colour instead, with a tag letter,
+  // so a street fight reads as purple vs green at a glance.
   for (const e of G.enemies) {
     const r = e.boss ? 14 : e.bruiser ? 13 : 10;
-    ctx.fillStyle = e.boss ? '#8e44ad' : e.bruiser ? '#7d2e1d' : '#6c3483';
+    const gangCol = typeof e.gang === 'string' ? GANGS[e.gang].color : null;
+    ctx.fillStyle = gangCol || (e.boss ? '#8e44ad' : e.bruiser ? '#7d2e1d' : '#6c3483');
     ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.fill();
+    if (e.turf) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(e.x, e.y, r + 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(GANGS[e.gang].tag, e.x, e.y - r - 9);
+    }
     if (e.boss) {
       ctx.strokeStyle = '#ffd93d'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(e.x, e.y, r + 3, 0, Math.PI * 2); ctx.stroke();
@@ -424,6 +439,12 @@ export function drawCar(ctx, c, G) {
     ctx.fillRect(-14, -l / 2 + 34, 12, 5);
     ctx.fillStyle = flash ? '#2d6bff' : '#ff2d2d';
     ctx.fillRect(2, -l / 2 + 34, 12, 5);
+  }
+  if (c.kind === 'gang') {
+    // a gang car wears its tag letter on the roof: V for Vultures, C for Cobras
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(c.gangTag || 'V', 0, 4);
   }
   if (c.kind === 'player') {
     ctx.strokeStyle = '#ffd93d'; ctx.lineWidth = 2;

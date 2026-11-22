@@ -5,6 +5,7 @@ import { ROAD_LINES } from './city.js';
 import { currentStep, STORY } from './missions.js';
 import { BOUNTY_REWARD } from './activities.js';
 import { DOCKS, BAY_START, BAY_RACE_POINTS } from './boats.js';
+import { GANGS, warCounts, zoneAt, turfSummary } from './gangwar.js';
 
 export function drawHUD(ctx, G, vw, vh) {
   const p = G.player;
@@ -31,6 +32,45 @@ export function drawHUD(ctx, G, vw, vh) {
   ctx.fillStyle = '#fff'; ctx.font = '13px sans-serif';
   const hh = Math.floor(G.clockMin / 60) % 24, mm = Math.floor(G.clockMin % 60);
   ctx.fillText(String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + '  •  Solara Bay', vw - 24, 64);
+
+  // --- top-left, under the Rico panel: turf war standings ---
+  // three zones, each wearing its owner's colour; during a war the
+  // panel grows a live line for the fight in progress, and a line for
+  // whose turf Rico is standing in right now
+  if (G.turf) {
+    const wc = warCounts(G);
+    const here = zoneAt(G, p.x, p.y);
+    let ph = 84;
+    if (wc) ph += 18;
+    if (here) ph += 18;
+    panel(ctx, 12, 112, 230, ph);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('TURF WAR  •  V ' + G.turf.wins.vultures + ' : ' + G.turf.wins.cobras + ' C', 24, 130);
+    let zy = 150;
+    for (const z of G.turf.zones) {
+      const col = z.owner === 'neutral' ? '#95a5a6' : GANGS[z.owner].color;
+      ctx.fillStyle = col; ctx.fillRect(24, zy - 10, 12, 12);
+      ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
+      ctx.fillText(z.name, 42, zy);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ddd';
+      // a gang Rico has shot up enough flies a HOSTILE flag on its turf
+      const st = z.owner === 'neutral' ? 0 : (G.turf.standing[z.owner] || 0);
+      ctx.fillText(z.owner === 'neutral' ? 'CONTESTED' : z.owner.toUpperCase() + (st <= -3 ? ' • HOSTILE' : ''), 230, zy);
+      ctx.textAlign = 'left';
+      zy += 18;
+    }
+    if (wc) {
+      ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('WAR IN ' + wc.zone.name.toUpperCase() + ' — V ' + wc.vultures + ' : ' + wc.cobras + ' C', 24, zy + 2);
+      zy += 18;
+    }
+    if (here) {
+      ctx.fillStyle = '#ddd'; ctx.font = '12px sans-serif';
+      ctx.fillText('You are in ' + here.name + ' turf', 24, zy + 2);
+    }
+  }
 
   // --- minimap (top-right, below stars)
   drawMinimap(ctx, G, vw - 212, 86, 200, 200);
@@ -110,11 +150,25 @@ export function drawHUD(ctx, G, vw, vh) {
         : 'TAXI FARE  •  Drop off the passenger  •  $' + G.taxi.fare + '  •  ' + d + ' m', vw / 2, 94);
     }
   }
+  // --- gang war banner under the activity panel: live counts, timer,
+  // and a tug-of-war bar that slides purple or green as fighters fall
+  const wcBanner = warCounts(G);
+  if (wcBanner) {
+    ctx.textAlign = 'center';
+    panel(ctx, vw / 2 - 260, 112, 520, 44);
+    ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('GANG WAR — ' + wcBanner.zone.name.toUpperCase() + '  •  VULTURES ' + wcBanner.vultures + ' — ' + wcBanner.cobras + ' COBRAS  •  ' + wcBanner.tLeft + 's', vw / 2, 134);
+    const tot = wcBanner.vultures + wcBanner.cobras;
+    const frac = tot > 0 ? wcBanner.vultures / tot : 0.5;
+    ctx.fillStyle = '#222'; ctx.fillRect(vw / 2 - 200, 142, 400, 6);
+    ctx.fillStyle = '#8e44ad'; ctx.fillRect(vw / 2 - 200, 142, 400 * frac, 6);
+    ctx.fillStyle = '#27ae60'; ctx.fillRect(vw / 2 - 200 + 400 * frac, 142, 400 * (1 - frac), 6);
+  }
   // --- helicopter warning
   if (G.heli) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 15px sans-serif';
-    ctx.fillText('POLICE HELICOPTER OVERHEAD — the heat will not fade while it watches', vw / 2, 122);
+    ctx.fillText('POLICE HELICOPTER OVERHEAD — the heat will not fade while it watches', vw / 2, wcBanner ? 170 : 122);
   }
 
   // --- bottom-right: weapon / ammo / speed
@@ -246,6 +300,23 @@ function drawMinimap(ctx, G, x, y, w, h) {
   // buildings
   ctx.fillStyle = '#d9b48f';
   for (const b of G.city.buildings) ctx.fillRect(x + b.x * s, y + b.y * s, Math.max(2, b.w * s), Math.max(2, b.h * s));
+  // turf zones on the minimap: each zone tinted with its owner's colour,
+  // the war zone flashing its border so the fight is findable at a glance
+  if (G.turf) {
+    for (const z of G.turf.zones) {
+      const col = z.owner === 'neutral' ? '#95a5a6' : GANGS[z.owner].color;
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = col;
+      ctx.fillRect(x + z.x * s, y + z.y * s, z.w * s, z.h * s);
+      ctx.globalAlpha = 1;
+    }
+    if (G.turf.war) {
+      const z = G.turf.war.zone;
+      ctx.strokeStyle = Math.floor(G.time * 4) % 2 ? '#ff5a4e' : '#ffd93d';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + z.x * s, y + z.y * s, z.w * s, z.h * s);
+    }
+  }
   // mission marker
   for (const m of G.markers) {
     const mx = m.follow ? G.player.x : m.x, my = m.follow ? G.player.y : m.y;
@@ -432,6 +503,8 @@ export function drawEndScreen(ctx, G, vw, vh, kind) {
     ctx.fillText('Rico Vega pulled the Big Score and sailed off into the sunset.', vw / 2, vh * 0.36 + 40);
     ctx.fillText('Final score: ' + G.score.toLocaleString('en-US') + '   •   Missions: ' + G.missionsDone + '/' + STORY.length + '   •   Cars stolen: ' + G.carsStolen, vw / 2, vh * 0.36 + 74);
     ctx.fillText('Bounties: ' + (G.stats.bounties || 0) + ' rounds cleared   •   Bounty cash: $' + (G.stats.bountyCash || 0).toLocaleString('en-US') + '   •   Taxi fares: ' + (G.stats.fares || 0), vw / 2, vh * 0.36 + 104);
+    const ts = turfSummary(G);
+    if (ts) ctx.fillText('Turf wars won: ' + ts.warsWon + '   •   Zones held — Vultures ' + ts.vultures + ' : ' + ts.cobras + ' Cobras', vw / 2, vh * 0.36 + 134);
   }
   ctx.fillStyle = '#ffd93d'; ctx.font = 'bold 20px sans-serif';
   ctx.fillText('Press Enter to continue', vw / 2, vh * 0.62);

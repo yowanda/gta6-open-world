@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// gta6-01 — Solara Bay: hand-in builder (round 5).
+// gta6-01 — Solara Bay: hand-in builder (round 10: gang war / turf war).
 // Node 22, standard library only. It assembles the entry the judge grades:
 //   game/        the playable open-world game (static files, offline)
 //   screenshots/ four 1280x720 JPEG renders of the running game

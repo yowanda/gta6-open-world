@@ -9,6 +9,7 @@ import { startMission, updateMissions, currentStep } from './missions.js';
 import { initDragnet, updateDragnet } from './police.js';
 import { updateActivities } from './activities.js';
 import { initBoats, updateBoats, boatPrompt, DOCKS } from './boats.js';
+import { createTurf, updateGangWar } from './gangwar.js';
 import { drawWorld } from './render.js';
 import { drawHUD, drawMenu, drawPause, drawEndScreen } from './hud.js';
 import { saveGame, loadSave, applySave, saveInfo } from './save.js';
@@ -31,6 +32,7 @@ resize();
 
 G.city = generateCity();
 initBoats(G);
+G.turf = createTurf(); // Vultures vs Cobras turf war over three zones
 G.player = makePlayer(420, 460);
 G.cam.x = G.player.x; G.cam.y = G.player.y;
 
@@ -60,6 +62,8 @@ function newGame() {
   G.cars = []; G.peds = [];
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
+  G.turf = createTurf();
+  G.barricades = [];
   initBoats(G);
   G.weather = 'clear'; G.weatherT = 75 + Math.random() * 60;
   initDragnet(G);
@@ -197,6 +201,7 @@ function frame(now) {
       updatePolice(G, dt, audio);
       updateDragnet(G, dt, audio);
       updateCombat(G, dt, audio);
+      updateGangWar(G, dt, audio); // Vultures vs Cobras turf war
       updateMissions(G, input, audio, dt);
       updateActivities(G, input, audio, dt);
       updateInteractions(dt);
@@ -291,7 +296,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-// screenshot staging: ?shot=cover|bounty|chase|mission
+// screenshot staging: ?shot=cover|bounty|chase|mission|gangwar|boat
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 if (shot) {

@@ -6,6 +6,7 @@ import { startMission } from './missions.js';
 import { stageRoadblock } from './police.js';
 import { RACE_POINTS } from './activities.js';
 import { BAY_RACE_POINTS } from './boats.js';
+import { startGangWar, stageSkirmish } from './gangwar.js';
 
 export function stageShot(G, name, audio) {
   G.shotMode = name;
@@ -28,6 +29,32 @@ export function stageShot(G, name, audio) {
     G.missionsDone = 8;
     startMission(G, 8, audio);
     G.wanted = 2;
+    // a Cobra hit-squad is pushing into the Boardwalk turf behind the
+    // story fight: green shooters, a burning barricade and the purple
+    // turf tint under Rook's crew — the cover shows the gang war too
+    stageSkirmish(G);
+  } else if (name === 'gangwar') {
+    // Turf war on The Strip, mid-fight: five Vultures vs five Cobras
+    // trading fire across the street, gang cars as cover, a burning
+    // barricade in the middle, Rico in the crossfire with the SMG out.
+    // The HUD turf panel and the GANG WAR banner show the war live,
+    // and the purple turf tint marks Vulture ground under the fight.
+    G.clockMin = 17 * 60 + 40;
+    p.x = 1885; p.y = 1300; p.onFoot = true; p.inCar = null;
+    p.angle = 0;
+    spawnTraffic(G, 8);
+    spawnPeds(G, 14);
+    G.money = 15200; G.health = 100; G.armor = 60;
+    G.ammo.smg = 120; G.weapon = 'smg';
+    G.missionsDone = 6;
+    G.nextMissionAt = 1e9; // staged shot: no story mission may butt in
+    G.bountyCd = 45; // staged shot: the next bounty round stays 45 s out
+    startGangWar(G, 'strip', audio);
+    G.turf.cooldown = 1e9; // staged shot: no second war may start
+    // tracers already in the air when the shutter opens
+    G.bullets.push({ x: p.x + 120, y: p.y - 60, vx: 700, vy: 250, life: 0.4, dmg: 0, fromPlayer: false, gang: 'vultures' });
+    G.bullets.push({ x: p.x - 100, y: p.y + 40, vx: -700, vy: -150, life: 0.4, dmg: 0, fromPlayer: false, gang: 'cobras' });
+    setToast(G, 'GANG WAR — The Strip is up for grabs. Pick a side, Rico.');
   } else if (name === 'bounty') {
     // Bounty hunt on the Boardwalk: Rico on foot, SMG out, three wanted
     // Vultures with red $ tags closing in, bounty panel on the HUD.

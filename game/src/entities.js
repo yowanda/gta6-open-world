@@ -512,6 +512,16 @@ export function updateCombat(G, dt, audio) {
           spawnParticles(G, b.x, b.y, 5, '#e74c3c');
           if (e.hp <= 0) {
             G.kills++; G.score += 100;
+            // tipping a turf war pays twice: the war tracks whose side
+            // Rico's bullets land on, and the zone flips on his help.
+            // It also costs him: every turf fighter he guns down turns
+            // that gang against him, one standing at a time.
+            if (e.turf && G.turf && G.turf.war) { G.turf.war.playerKills++; G.stats.turfKills++; }
+            if (e.turf && G.turf) {
+              const st = (G.turf.standing[e.gang] || 0) - 1;
+              G.turf.standing[e.gang] = st;
+              if (st === -3) setToast(G, 'The ' + (e.gang === 'cobras' ? 'Cobras' : 'Vultures') + ' want you dead now');
+            }
             if (e.bounty && G.bounty) G.bounty.left--;
             spawnParticles(G, e.x, e.y, 14, '#c0392b');
             G.pickups.push({ x: e.x, y: e.y, kind: 'cash', val: 60 + Math.floor(Math.random() * 80), t: 0 });
@@ -537,11 +547,32 @@ export function updateCombat(G, dt, audio) {
         }
       }
     } else {
-      if (!p.inCar && dist2(b.x, b.y, p.x, p.y) < 16 * 16) {
+      // gang crossfire (b.gang): a turf fighter's round may only hurt
+      // the rival gang — and Rico, if he stands in the middle of it.
+      // A gang kill feeds the war's tally; the zone flips on the count.
+      let hitRival = false;
+      if (b.gang) {
+        for (const e of G.enemies) {
+          if (e.hp > 0 && e.gang !== b.gang && dist2(b.x, b.y, e.x, e.y) < 18 * 18) {
+            e.hp -= b.dmg; b.life = 0; hitRival = true;
+            spawnParticles(G, b.x, b.y, 5, '#e74c3c');
+            if (e.hp <= 0) {
+              spawnParticles(G, e.x, e.y, 14, '#c0392b');
+              G.pickups.push({ x: e.x, y: e.y, kind: 'cash', val: 40 + Math.floor(Math.random() * 60), t: 0 });
+              if (G.turf && G.turf.war) {
+                const w = G.turf.war;
+                w.kills[b.gang] = (w.kills[b.gang] || 0) + 1;
+              }
+            }
+            break;
+          }
+        }
+      }
+      if (!hitRival && !p.inCar && dist2(b.x, b.y, p.x, p.y) < 16 * 16) {
         b.life = 0;
         hurtPlayer(G, b.dmg, audio);
         spawnParticles(G, b.x, b.y, 4, '#e74c3c');
-      } else if (p.inCar && dist2(b.x, b.y, p.x, p.y) < 26 * 26) {
+      } else if (!hitRival && p.inCar && dist2(b.x, b.y, p.x, p.y) < 26 * 26) {
         b.life = 0;
         p.inCar.hp -= b.dmg;
         if (p.inCar.hp <= 0) { explodeCar(G, p.inCar, audio); exitCar(G); hurtPlayer(G, 25, audio); }
@@ -550,9 +581,11 @@ export function updateCombat(G, dt, audio) {
   }
   G.bullets = G.bullets.filter(b => b.life > 0 && b.x > 0 && b.x < WORLD && b.y > 0 && b.y < WORLD);
   G.cops = G.cops.filter(c => c.hp > 0);
-  // enemies AI
+  // enemies AI — turf fighters are driven by gangwar.js instead: they
+  // fight the rival gang, not Rico, so this loop leaves them alone
   for (const e of G.enemies) {
     if (e.hp <= 0) continue;
+    if (e.turf) continue;
     const d = Math.sqrt(dist2(e.x, e.y, p.x, p.y));
     e.angle = Math.atan2(p.y - e.y, p.x - e.x);
     if (d > 300) {

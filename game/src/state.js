@@ -84,7 +84,7 @@ export function createGame() {
     keys: {},
     shotMode: null,          // screenshot staging name
     muted: false,
-    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0, bounties: 0, bountyCash: 0, boatBest: 0 },
+    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0, bounties: 0, bountyCash: 0, boatBest: 0, turfWarsWon: 0, turfKills: 0 },
     heli: null,            // police helicopter at 4+ stars {x, y, angle}
     taxi: null,            // taxi fare job {stage, x, y, fare, t}
     race: null,            // street race {cp, t, points, cooldown}
@@ -93,6 +93,8 @@ export function createGame() {
     boatRace: null,        // Bay Runner buoy race {cp, t, points, cooldown}
     bounty: null,          // Vulture bounty round {left, total, t} while one runs
     bountyCd: 0,           // seconds until the next bounty round may start
+    turf: null,            // turf war state: zones, running war, cooldown (see gangwar.js)
+    barricades: [],        // war barricades {x, y, angle, burning, t}
     weather: 'clear',      // clear | rain — rolls over on its own timer
     weatherT: 75 + rng() * 60,
     saveSlot: 'solara-bay-save-v1',
