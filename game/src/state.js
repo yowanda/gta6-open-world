@@ -84,11 +84,13 @@ export function createGame() {
     keys: {},
     shotMode: null,          // screenshot staging name
     muted: false,
-    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0, bounties: 0, bountyCash: 0 },
+    stats: { shots: 0, hits: 0, fares: 0, racesWon: 0, raceBest: 0, bounties: 0, bountyCash: 0, boatBest: 0 },
     heli: null,            // police helicopter at 4+ stars {x, y, angle}
     taxi: null,            // taxi fare job {stage, x, y, fare, t}
     race: null,            // street race {cp, t, points, cooldown}
     raceFlash: 0,          // timer for the race-start banner
+    boats: [],             // speedboats moored at the docks (see boats.js)
+    boatRace: null,        // Bay Runner buoy race {cp, t, points, cooldown}
     bounty: null,          // Vulture bounty round {left, total, t} while one runs
     bountyCd: 0,           // seconds until the next bounty round may start
     weather: 'clear',      // clear | rain — rolls over on its own timer
@@ -119,7 +121,4 @@ export const CAR_MODELS = [
   { name: 'Stallion', w: 48, l: 88, speed: 440, accel: 390 },
   { name: 'Limo', w: 50, l: 132, speed: 300, accel: 170 },
   { name: 'Rider', w: 22, l: 72, speed: 540, accel: 430 },
-  // round 8: Sunset is a convertible cruiser — quick, light, and built
-  // for the coast road along the Boardwalk.
-  { name: 'Sunset', w: 46, l: 86, speed: 460, accel: 330 },
 ];

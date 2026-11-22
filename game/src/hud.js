@@ -4,7 +4,7 @@ import { WORLD, ROAD_HALF, clamp } from './state.js';
 import { ROAD_LINES } from './city.js';
 import { currentStep, STORY } from './missions.js';
 import { BOUNTY_REWARD } from './activities.js';
-import { drawSidePanel, SIDE_GIVERS, sideChainDone } from './missions2.js';
+import { DOCKS, BAY_START, BAY_RACE_POINTS } from './boats.js';
 
 export function drawHUD(ctx, G, vw, vh) {
   const p = G.player;
@@ -84,12 +84,17 @@ export function drawHUD(ctx, G, vw, vh) {
     ctx.fillText('Head to the Pelican Motel — follow the yellow marker', vw / 2, 34);
   }
 
-  // --- side activity (taxi fare / street race / bounty) under the mission panel
-  if (G.taxi || (G.race && G.race.active) || G.bounty) {
+  // --- side activity (taxi fare / street race / bounty / Bay Runner) under the mission panel
+  if (G.taxi || (G.race && G.race.active) || G.bounty || (G.boatRace && G.boatRace.active)) {
     ctx.textAlign = 'center';
     panel(ctx, vw / 2 - 260, 72, 520, 34);
     ctx.font = 'bold 14px sans-serif';
-    if (G.race && G.race.active) {
+    if (G.boatRace && G.boatRace.active) {
+      ctx.fillStyle = '#7fd4e8';
+      const cp = G.boatRace.points[G.boatRace.cp];
+      const d = cp ? Math.round(Math.hypot(p.x - cp.x, p.y - cp.y)) : 0;
+      ctx.fillText('BAY RUNNER  •  BUOY ' + (G.boatRace.cp + 1) + '/' + G.boatRace.points.length + '  •  ' + G.boatRace.t.toFixed(1) + 's  •  ' + d + ' m', vw / 2, 94);
+    } else if (G.race && G.race.active) {
       ctx.fillStyle = '#2ecc71';
       const cp = G.race.points[G.race.cp];
       const d = cp ? Math.round(Math.hypot(p.x - cp.x, p.y - cp.y)) : 0;
@@ -105,8 +110,6 @@ export function drawHUD(ctx, G, vw, vh) {
         : 'TAXI FARE  •  Drop off the passenger  •  $' + G.taxi.fare + '  •  ' + d + ' m', vw / 2, 94);
     }
   }
-  // --- side jobs panel (active job + chain progress) ---
-  drawSidePanel(ctx, G, vw, vh);
   // --- helicopter warning
   if (G.heli) {
     ctx.textAlign = 'center';
@@ -134,6 +137,12 @@ export function drawHUD(ctx, G, vw, vh) {
       ctx.fillStyle = '#ff5a4e'; ctx.font = 'bold 13px sans-serif';
       ctx.fillText('TIRES ' + '●'.repeat(4 - flat) + '○'.repeat(flat) + '  —  R at Pay \'n\' Spray ($150)', vw - 24, vh - 104);
     }
+  } else if (p.inBoat) {
+    ctx.fillStyle = '#7fd4e8'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(Math.round(Math.abs(p.inBoat.speed) * 0.36) + ' km/h', vw - 24, vh - 20);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
+    ctx.fillText('Speedboat', vw - 200, vh - 20);
+    ctx.textAlign = 'right';
   } else {
     ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif';
     ctx.fillText('On foot — press E near a car to steal it', vw - 24, vh - 20);
@@ -144,7 +153,7 @@ export function drawHUD(ctx, G, vw, vh) {
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(12, vh - 34, 560, 22);
   ctx.fillStyle = '#ddd'; ctx.font = '12px sans-serif';
-  ctx.fillText('WASD move/drive  •  Mouse aim, Click shoot  •  E enter/exit car  •  Shift run  •  Space brake  •  P pause  •  M mute', 20, vh - 19);
+  ctx.fillText('WASD move/drive/sail  •  Mouse aim, Click shoot  •  E car / board boat  •  Shift run  •  Space brake  •  P pause  •  M mute', 20, vh - 19);
 
   // --- toast message
   if (G.message && G.messageT > 0) {
@@ -276,21 +285,18 @@ function drawMinimap(ctx, G, x, y, w, h) {
       ctx.beginPath(); ctx.arc(x + e.x * s, y + e.y * s, 4, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // side-job givers (purple !) and the active side objective (purple dot)
-  if (G.side) {
-    for (let i = 0; i < SIDE_GIVERS.length; i++) {
-      const g = SIDE_GIVERS[i];
-      ctx.fillStyle = sideChainDone(G, i) ? '#888' : g.color;
-      ctx.beginPath(); ctx.arc(x + g.x * s, y + g.y * s, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 7px sans-serif';
-      ctx.fillText('!', x + g.x * s, y + g.y * s + 2.5);
-    }
-    const sa = G.side.active;
-    if (sa && sa.job.steps[sa.step] && sa.job.steps[sa.step].x !== undefined) {
-      const st = sa.job.steps[sa.step];
-      ctx.fillStyle = '#c678dd';
-      ctx.beginPath(); ctx.arc(x + st.x * s, y + st.y * s, 4, 0, Math.PI * 2); ctx.fill();
-    }
+  // docks (brown ticks), Bay Runner buoys (orange) and the boat (white ring)
+  ctx.fillStyle = '#8a6b48';
+  for (const d of DOCKS) ctx.fillRect(x + d.bx * s - 2, y + d.by * s - 2, 4, 4);
+  ctx.fillStyle = '#ff9f1a';
+  ctx.beginPath(); ctx.arc(x + BAY_START.x * s, y + BAY_START.y * s, 3, 0, Math.PI * 2); ctx.fill();
+  if (G.boatRace && G.boatRace.active && G.boatRace.points[G.boatRace.cp]) {
+    const cp = G.boatRace.points[G.boatRace.cp];
+    ctx.beginPath(); ctx.arc(x + cp.x * s, y + cp.y * s, 4, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const b of G.boats || []) {
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x + b.x * s, y + b.y * s, 4, 0, Math.PI * 2); ctx.stroke();
   }
   // player arrow
   const p = G.player;
@@ -383,6 +389,8 @@ export function drawMenu(ctx, G, vw, vh) {
       '• Vulture bounties: three wanted gang members roam the city —',
       '  take them down for $400 each (red $ on the minimap).',
       '• The Sunset Boardwalk has shops, a pier and a ferris wheel.',
+      '• Two docks on the east shore moor speedboats — press E on a dock',
+      '  to board one, and race the orange buoys for the Bay Runner prize.',
       '• Press P to pause, M to mute.',
     ];
     lines.forEach((l, i) => ctx.fillText(l, vw / 2 - 320, vh * 0.2 + 36 + i * 24));

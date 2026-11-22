@@ -1,11 +1,11 @@
 // shots.js — stages real gameplay scenes for screenshots.
-// ?shot=cover | bounty | chase | mission — the game itself renders these states;
+// ?shot=cover | bounty | chase | mission | boat — the game itself renders these states;
 // this only places the player, cars and police, then starts play.
 import { makeCar, spawnTraffic, spawnPeds, setToast } from './entities.js';
 import { startMission } from './missions.js';
-import { stageSideJob } from './missions2.js';
 import { stageRoadblock } from './police.js';
 import { RACE_POINTS } from './activities.js';
+import { BAY_RACE_POINTS } from './boats.js';
 
 export function stageShot(G, name, audio) {
   G.shotMode = name;
@@ -104,21 +104,31 @@ export function stageShot(G, name, audio) {
     G.mission.spawned = true;
     // a few bullets in the air for action
     G.bullets.push({ x: p.x + 60, y: p.y - 20, vx: 600, vy: 200, life: 0.4, dmg: 0, fromPlayer: true });
-  } else if (name === 'jobs') {
-    // Side Jobs on the Boardwalk: Rico on foot next to Ozzy Park, the
-    // escort job live (Timmy follows), side-job panel on the HUD.
-    G.clockMin = 16 * 60 + 20;
-    p.x = 2210; p.y = 1560; p.onFoot = true; p.inCar = null;
-    p.angle = 0;
-    spawnTraffic(G, 6);
-    spawnPeds(G, 14);
-    G.money = 3250; G.health = 100; G.armor = 25;
-    G.missionsDone = 1;
+  } else if (name === 'boat') {
+    // Dusk on the bay: Rico at the helm of the red speedboat off the
+    // Boardwalk, ferris wheel and pier behind, wake trailing, the Bay
+    // Runner race already running so the HUD shows the buoy progress.
+    // The boat runs north from a block south of the wheel so the camera
+    // (which never centres past the city edge) still frames wheel, pier
+    // and stalls while the wake trails behind it.
+    G.clockMin = 18 * 60 + 20;
+    const b = G.boats[0];
+    // start well south of the wheel and cruise north: the boat covers
+    // ~600 px while the shot settles, so it ends by the wheel with its
+    // wake trailing south behind it. x=2500 keeps the whole hull in frame
+    // (the camera never centres past the city edge, so the bay is a strip
+    // on the right of the shot). cp=2 so no buoy is crossed mid-settle.
+    b.x = 2500; b.y = 1800; b.angle = -Math.PI / 2; b.speed = 200; b.moored = false;
+    p.x = b.x; p.y = b.y; p.angle = b.angle; p.onFoot = false; p.inCar = null;
+    p.inBoat = b;
+    spawnTraffic(G, 8);
+    spawnPeds(G, 12);
+    G.money = 9300; G.health = 100; G.armor = 40;
+    G.missionsDone = 5;
     G.nextMissionAt = 1e9; // staged shot: no story mission may butt in
-    stageSideJob(G, 2, 0, audio);
-    // jump to the escort step: Timmy spawns on the next update tick
-    G.side.active.step = 1;
-    setToast(G, 'SIDE JOB: Walk the Kid Home — Timmy is following you');
+    G.bountyCd = 45; // staged shot: the next bounty round stays 45 s out
+    G.boatRace = { active: true, cp: 2, t: 24.6, points: BAY_RACE_POINTS, cooldown: 0 };
+    setToast(G, 'BAY RUNNER! Round all 4 buoys — $1200 for the win');
   }
   // aim the camera at the player immediately
   G.cam.x = p.x; G.cam.y = p.y;

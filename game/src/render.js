@@ -3,8 +3,8 @@
 import { WORLD, ROAD_HALF, clamp, nightFactor } from './state.js';
 import { pointInBuilding, ROAD_LINES } from './city.js';
 import { RACE_START, RACE_POINTS, BOUNTY_REWARD } from './activities.js';
+import { drawDocks, drawBuoys, drawBoats } from './boats.js';
 import { drawDragnet } from './police.js';
-import { drawSideWorld } from './missions2.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -198,8 +198,6 @@ export function drawWorld(ctx, G, vw, vh) {
     ctx.fillStyle = '#ffd93d';
     ctx.beginPath(); ctx.moveTo(mx, by + 16); ctx.lineTo(mx - 10, by - 6); ctx.lineTo(mx + 10, by - 6); ctx.closePath(); ctx.fill();
   }
-  // side-job givers, the escort kid and the fleeing debtor
-  drawSideWorld(ctx, G);
   // pickups
   for (const pk of G.pickups) {
     const bob = Math.sin(G.time * 4 + pk.x) * 3;
@@ -215,8 +213,13 @@ export function drawWorld(ctx, G, vw, vh) {
   }
   // PD dragnet: spike strips and roadblock cruisers, under the traffic
   drawDragnet(ctx, G);
+  // the marina docks and the Bay Runner buoys on the water
+  drawDocks(ctx, G);
+  drawBuoys(ctx, G);
   // cars
   for (const c of G.cars) drawCar(ctx, c, G);
+  // speedboats ride on the water, above the docks
+  drawBoats(ctx, G);
   // headlight cones after dark: the player's car and police cruisers cut the night
   if (night > 0.25) {
     for (const c of G.cars) {

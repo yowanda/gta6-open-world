@@ -6,9 +6,9 @@ import { Input } from './input.js';
 import { AudioSys } from './audio.js';
 import { makePlayer, spawnTraffic, spawnPeds, updatePlayer, updateTraffic, updatePeds, updatePolice, updateCombat, setToast, exitCar } from './entities.js';
 import { startMission, updateMissions, currentStep } from './missions.js';
-import { initSideJobs, updateSideJobs, drawJobsBoard } from './missions2.js';
 import { initDragnet, updateDragnet } from './police.js';
 import { updateActivities } from './activities.js';
+import { initBoats, updateBoats, boatPrompt, DOCKS } from './boats.js';
 import { drawWorld } from './render.js';
 import { drawHUD, drawMenu, drawPause, drawEndScreen } from './hud.js';
 import { saveGame, loadSave, applySave, saveInfo } from './save.js';
@@ -17,7 +17,6 @@ import { stageShot } from './shots.js';
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const G = createGame();
-initSideJobs(G);
 const input = new Input(canvas);
 const audio = new AudioSys();
 
@@ -31,6 +30,7 @@ window.addEventListener('resize', resize);
 resize();
 
 G.city = generateCity();
+initBoats(G);
 G.player = makePlayer(420, 460);
 G.cam.x = G.player.x; G.cam.y = G.player.y;
 
@@ -60,9 +60,9 @@ function newGame() {
   G.cars = []; G.peds = [];
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
+  initBoats(G);
   G.weather = 'clear'; G.weatherT = 75 + Math.random() * 60;
   initDragnet(G);
-  initSideJobs(G);
   for (const [x, y] of pkgSpots) G.pickups.push({ x, y, kind: 'package', val: 0, t: 0 });
   G.player = makePlayer(420, 460);
   G.cam.x = G.player.x; G.cam.y = G.player.y;
@@ -77,6 +77,12 @@ function newGame() {
 function respawn() {
   const p = G.player;
   if (p.inCar) { const c = p.inCar; G.cars = G.cars.filter(x => x !== c); }
+  if (p.inBoat) {
+    // the boat is towed back to its home dock; Rico wakes up on land
+    const b = p.inBoat, d = DOCKS[b.dock];
+    b.x = d.bx; b.y = d.by; b.angle = -Math.PI / 2; b.speed = 0; b.moored = true;
+    p.inBoat = null; p.onFoot = true;
+  }
   p.inCar = null; p.onFoot = true; p.dead = false;
   p.x = 650; p.y = 1950; // Solara General Hospital
   const fee = G.money - Math.floor(G.money * 0.9); // 10% hospital fee, taken before the deduction
@@ -85,7 +91,6 @@ function respawn() {
   G.heli = null; G.taxi = null; G.race = null;
   G.bounty = null; G.bountyCd = 0;
   initDragnet(G);
-  if (G.side) { G.side.active = null; G.side.boardOpen = false; G.markers = []; }
   G.enemies = G.enemies.filter(e => !e.bounty);
   G.cars = G.cars.filter(c => c.kind !== 'police');
   G.cam.x = p.x; G.cam.y = p.y;
@@ -178,10 +183,6 @@ function frame(now) {
     }
   } else if (G.state === 'playing') {
     if (input.hit('p') || input.hit('escape')) { G.state = 'paused'; G.pausedSel = 0; audio.click(); }
-    else if (G.side && G.side.boardOpen) {
-      // Jobs board open: the city waits while Rico reads the board
-      if (input.hit('j') || input.hit('escape')) { G.side.boardOpen = false; audio.click(); }
-    }
     else if (G.dialog) {
       if (input.hit('e') || input.hit('enter') || input.hit(' ') || input.mouse.clicked) {
         G.dialog.i++;
@@ -189,37 +190,34 @@ function frame(now) {
         audio.click();
       }
     } else {
-      if (input.hit('j') && G.side) { G.side.boardOpen = true; audio.click(); }
-      else {
-        updatePlayer(G, input, audio, dt);
-        updateTraffic(G, dt);
-        updatePeds(G, dt, audio);
-        updatePolice(G, dt, audio);
-        updateDragnet(G, dt, audio);
-        updateCombat(G, dt, audio);
-        updateMissions(G, input, audio, dt);
-        updateSideJobs(G, input, audio, dt);
-        updateActivities(G, input, audio, dt);
-        updateInteractions(dt);
-        // weather rolls over on its own: clear skies, then rain, then clear
-        G.weatherT -= dt;
-        if (G.weatherT <= 0) {
-          if (G.weather === 'clear') {
-            if (Math.random() < 0.35) {
-              G.weather = 'rain'; G.weatherT = 45 + Math.random() * 45;
-              setToast(G, 'Rain over Solara Bay — roads are slick');
-            } else G.weatherT = 60 + Math.random() * 60;
-          } else {
-            G.weather = 'clear'; G.weatherT = 75 + Math.random() * 90;
-            setToast(G, 'The rain lets up over Solara Bay');
-          }
+      updateBoats(G, input, audio, dt); // boards, sails, Bay Runner — before the player update eats E
+      updatePlayer(G, input, audio, dt);
+      updateTraffic(G, dt);
+      updatePeds(G, dt, audio);
+      updatePolice(G, dt, audio);
+      updateDragnet(G, dt, audio);
+      updateCombat(G, dt, audio);
+      updateMissions(G, input, audio, dt);
+      updateActivities(G, input, audio, dt);
+      updateInteractions(dt);
+      // weather rolls over on its own: clear skies, then rain, then clear
+      G.weatherT -= dt;
+      if (G.weatherT <= 0) {
+        if (G.weather === 'clear') {
+          if (Math.random() < 0.35) {
+            G.weather = 'rain'; G.weatherT = 45 + Math.random() * 45;
+            setToast(G, 'Rain over Solara Bay — roads are slick');
+          } else G.weatherT = 60 + Math.random() * 60;
+        } else {
+          G.weather = 'clear'; G.weatherT = 75 + Math.random() * 90;
+          setToast(G, 'The rain lets up over Solara Bay');
         }
       }
     }
     // camera follows player with velocity look-ahead
     const p = G.player;
-    const tx = p.x + (p.vx || 0) * 0.25 + (p.inCar ? Math.cos(p.angle) * 60 : 0);
-    const ty = p.y + (p.vy || 0) * 0.25 + (p.inCar ? Math.sin(p.angle) * 60 : 0);
+    const tx = p.x + (p.vx || 0) * 0.25 + ((p.inCar || p.inBoat) ? Math.cos(p.angle) * 60 : 0);
+    const ty = p.y + (p.vy || 0) * 0.25 + ((p.inCar || p.inBoat) ? Math.sin(p.angle) * 60 : 0);
     G.cam.x = lerp(G.cam.x, tx, 1 - Math.pow(0.001, dt));
     G.cam.y = lerp(G.cam.y, ty, 1 - Math.pow(0.001, dt));
     // never show the void beyond the city edge
@@ -256,7 +254,6 @@ function frame(now) {
     const d = darkness();
     if (d > 0.01) { ctx.fillStyle = 'rgba(10,16,48,' + d + ')'; ctx.fillRect(0, 0, vw, vh); }
     if (G.state !== 'paused') drawHUD(ctx, G, vw, vh);
-    if (G.side && G.side.boardOpen) drawJobsBoard(ctx, G, vw, vh);
     // interaction prompt
     if (G.state === 'playing' && G.nearShop && !G.dialog) {
       const labels = {
@@ -275,6 +272,16 @@ function frame(now) {
       ctx.fillText(labels[G.nearShop], vw / 2, vh - 171);
     }
     if (G.state === 'paused') drawPause(ctx, G, vw, vh);
+    // dock prompt: what E does with a speedboat, when no shop is nearer
+    const bp = G.state === 'playing' && !G.nearShop && !G.dialog ? boatPrompt(G) : null;
+    if (bp) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      const w = ctx.measureText(bp).width + 36;
+      ctx.fillRect(vw / 2 - w / 2, vh - 190, w, 28);
+      ctx.fillStyle = '#7fd4e8'; ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(bp, vw / 2, vh - 171);
+    }
     if (G.state === 'wasted') drawEndScreen(ctx, G, vw, vh, 'wasted');
     if (G.state === 'busted') drawEndScreen(ctx, G, vw, vh, 'busted');
     if (G.state === 'storydone') drawEndScreen(ctx, G, vw, vh, 'storydone');

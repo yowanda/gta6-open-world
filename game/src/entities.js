@@ -7,6 +7,7 @@ export function makePlayer(x, y) {
   return {
     x, y, angle: -Math.PI / 2, speed: 0, vx: 0, vy: 0,
     inCar: null,           // car object when driving
+    inBoat: null,          // boat object when sailing (see boats.js)
     onFoot: true,
     run: false,
     fireCd: 0, reloadT: 0,
@@ -154,11 +155,16 @@ export function updatePlayer(G, input, audio, dt) {
   p.hurtT = Math.max(0, p.hurtT - dt);
   if (p.dead) return;
 
-  if (input.hit('e')) { if (p.inCar) exitCar(G); else tryEnterCar(G, audio); }
+  // E is eaten by boats.js first when Rico boards or leaves a boat, so
+  // the same keypress never also steals a car on the coast road
+  if (input.hit('e') && !G._boatE) { if (p.inCar) exitCar(G); else tryEnterCar(G, audio); }
   if (input.hit('1')) { G.weapon = 'pistol'; audio.click(); }
   if (input.hit('2') && G.ammo.smg > 0) { G.weapon = 'smg'; audio.click(); }
   if (input.hit('3') && G.ammo.shotgun > 0) { G.weapon = 'shotgun'; audio.click(); }
   if (input.hit('m')) { G.muted = !G.muted; audio.setMuted(G.muted); }
+
+  // sailing: the boat drives in boats.js, never walk or shoot from it
+  if (p.inBoat) { audio.setEngine(Math.abs(p.inBoat.speed || 0) / 560); return; }
 
   if (p.inCar) {
     const c = p.inCar;
@@ -468,7 +474,8 @@ export function updatePolice(G, dt, audio) {
   const wantFoot = stars >= 2 ? Math.min(stars - 1, 3) : 0;
   if (G.cops.length < wantFoot && Math.random() < dt * 0.5) {
     const a = Math.random() * Math.PI * 2;
-    G.cops.push({ x: clamp(p.x + Math.cos(a) * 420, 60, WORLD - 60), y: clamp(p.y + Math.sin(a) * 420, 60, WORLD - 60), angle: 0, hp: 50, fireCd: 1 + Math.random(), speed: 130 });
+    // foot cops stay on dry land: the bay is the boat's territory
+    G.cops.push({ x: clamp(p.x + Math.cos(a) * 420, 60, 2460), y: clamp(p.y + Math.sin(a) * 420, 60, WORLD - 60), angle: 0, hp: 50, fireCd: 1 + Math.random(), speed: 130 });
   }
   for (const cop of G.cops) {
     const d = Math.sqrt(dist2(cop.x, cop.y, p.x, p.y));
@@ -485,6 +492,8 @@ export function updatePolice(G, dt, audio) {
     }
     const hit = collideCircle(G.city, cop.x, cop.y, 12);
     cop.x = hit.x; cop.y = hit.y;
+    // never wade into the bay after a boater
+    cop.x = Math.min(cop.x, 2460);
   }
   if (stars < 2) G.cops = [];
 }
